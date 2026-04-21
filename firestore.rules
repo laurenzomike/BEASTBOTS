@@ -1,0 +1,79 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net - Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() { return request.auth != null; }
+    // Mandate email verification for WRITES as per instructions
+    function isVerified() { return isSignedIn() && request.auth.token.email_verified == true; }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+    function isValidId(id) { return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+
+    // --- Entity Validations ---
+    function isCreateValidBot(data) {
+      return data.keys().hasAll(['userId', 'name', 'type', 'status'])
+        && data.userId == request.auth.uid
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 128
+        && data.type in ['shopify', 'etsy', 'pinterest', 'kalshi', 'polymarket', 'botboss', 'amazon', 'youtube', 'alpaca', 'coinbase', 'gmail', 'facebook', 'discord']
+        && data.status in ['online', 'offline', 'error', 'auth-required'];
+    }
+
+    function isUpdateValidBot(data) {
+      return (data.name == null || (data.name is string && data.name.size() > 0 && data.name.size() <= 128))
+      && (data.status == null || (data.status in ['online', 'offline', 'error', 'auth-required']))
+      && (data.config == null || (data.config is map))
+      && (data.autonomous == null || (data.autonomous is bool))
+      && (data.updatedAt == null || (data.updatedAt is timestamp));
+    }
+
+    // Shadow field prevention: Exact key count for bots
+    function hasOnlyBotKeys(data) {
+       return data.keys().hasOnly(['userId', 'name', 'type', 'status', 'config', 'createdAt', 'updatedAt', 'autonomous']);
+    }
+
+    function isValidActivity(data) {
+      return data.keys().hasAll(['userId', 'botId', 'botType', 'text', 'timestamp'])
+        && data.keys().size() == 5
+        && data.userId == request.auth.uid
+        && data.botId is string && data.botId.size() <= 128
+        && data.botType is string && data.botType.size() <= 64
+        && data.text is string && data.text.size() <= 2000
+        && data.timestamp is timestamp;
+    }
+
+    // --- Core Match Pattern ---
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      
+      match /bots/{botId} {
+        allow get: if isOwner(userId) && isValidId(botId);
+        allow list: if isOwner(userId); // Narrowed by path
+        
+        allow create: if isOwner(userId) && isCreateValidBot(incoming());
+          
+        allow update: if isOwner(userId);
+          
+        allow delete: if isVerified() && isOwner(userId) && isValidId(botId);
+      }
+
+      match /activities/{activityId} {
+        allow get: if isOwner(userId) && isValidId(activityId);
+        allow list: if isOwner(userId); // Narrowed by path
+        
+        allow create: if isVerified() && isOwner(userId) && isValidId(activityId)
+          && isValidActivity(incoming())
+          && incoming().timestamp == request.time;
+          
+        allow update: if false; // Immutable logs
+        allow delete: if isVerified() && isOwner(userId) && isValidId(activityId);
+      }
+    }
+  }
+}
