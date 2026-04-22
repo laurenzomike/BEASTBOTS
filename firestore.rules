@@ -18,34 +18,59 @@ service cloud.firestore {
 
     // --- Entity Validations ---
     function isCreateValidBot(data) {
-      return data.keys().hasAll(['userId', 'name', 'type', 'status'])
+      return data.keys().hasAll(['userId', 'name', 'type', 'status', 'config', 'createdAt', 'updatedAt'])
+        && data.keys().size() <= 8
         && data.userId == request.auth.uid
         && data.name is string && data.name.size() > 0 && data.name.size() <= 128
-        && data.type in ['shopify', 'etsy', 'pinterest', 'kalshi', 'polymarket', 'botboss', 'amazon', 'youtube', 'alpaca', 'coinbase', 'gmail', 'facebook', 'discord']
-        && data.status in ['online', 'offline', 'error', 'auth-required'];
+        && data.type in ['shopify', 'etsy', 'pinterest', 'kalshi', 'polymarket', 'botboss', 'amazon', 'youtube', 'alpaca', 'coinbase', 'gmail', 'facebook', 'discord', 'ebay']
+        && data.status in ['online', 'offline', 'error', 'auth-required']
+        && data.config is map
+        && data.createdAt is timestamp && data.createdAt == request.time
+        && data.updatedAt is timestamp && data.updatedAt == request.time
+        && (data.get('autonomous', false) is bool); // autonomous is optional on create
     }
 
-    function isUpdateValidBot(data) {
-      return (data.name == null || (data.name is string && data.name.size() > 0 && data.name.size() <= 128))
-      && (data.status == null || (data.status in ['online', 'offline', 'error', 'auth-required']))
-      && (data.config == null || (data.config is map))
-      && (data.autonomous == null || (data.autonomous is bool))
-      && (data.updatedAt == null || (data.updatedAt is timestamp));
-    }
-
-    // Shadow field prevention: Exact key count for bots
-    function hasOnlyBotKeys(data) {
-       return data.keys().hasOnly(['userId', 'name', 'type', 'status', 'config', 'createdAt', 'updatedAt', 'autonomous']);
+    function isValidBot(data) {
+      return data.keys().hasAll(['userId', 'name', 'type', 'status', 'config', 'createdAt', 'updatedAt'])
+        && data.keys().size() <= 12
+        && data.userId == request.auth.uid
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 128
+        && data.type in ['shopify', 'etsy', 'pinterest', 'kalshi', 'polymarket', 'botboss', 'amazon', 'youtube', 'alpaca', 'coinbase', 'gmail', 'facebook', 'discord', 'ebay']
+        && data.status in ['online', 'offline', 'error', 'auth-required']
+        && data.config is map
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp && data.updatedAt == request.time
+        && (data.get('autonomous', false) is bool);
     }
 
     function isValidActivity(data) {
       return data.keys().hasAll(['userId', 'botId', 'botType', 'text', 'timestamp'])
-        && data.keys().size() == 5
+        && data.keys().size() <= 10
         && data.userId == request.auth.uid
         && data.botId is string && data.botId.size() <= 128
         && data.botType is string && data.botType.size() <= 64
         && data.text is string && data.text.size() <= 2000
-        && data.timestamp is timestamp;
+        && data.timestamp is timestamp
+        && (data.get('type', '') is string);
+    }
+
+    function isValidMemory(data) {
+      return data.keys().hasAll(['userId', 'botId', 'memories', 'updatedAt'])
+        && data.keys().size() <= 8
+        && data.userId == request.auth.uid
+        && data.botId is string && data.botId.size() <= 128
+        && data.memories is list
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidFile(data) {
+      return data.keys().hasAll(['userId', 'botId', 'fileName', 'contentType', 'fileSize', 'contentSummary', 'createdAt'])
+        && data.keys().size() <= 8
+        && data.userId == request.auth.uid
+        && data.botId is string && data.botId.size() <= 128
+        && data.fileName is string && data.fileName.size() <= 256
+        && data.contentSummary is string && data.contentSummary.size() <= 5000
+        && data.createdAt is timestamp;
     }
 
     // --- Core Match Pattern ---
@@ -54,18 +79,47 @@ service cloud.firestore {
       
       match /bots/{botId} {
         allow get: if isOwner(userId) && isValidId(botId);
-        allow list: if isOwner(userId); // Narrowed by path
+        allow list: if isOwner(userId); // the query specifically targets where("userId", "==", user.uid)
         
-        allow create: if isOwner(userId) && isCreateValidBot(incoming());
+        allow create: if isVerified() && isOwner(userId) && isValidId(botId) && isCreateValidBot(incoming());
           
-        allow update: if isOwner(userId);
+        allow update: if isVerified() && isOwner(userId) && isValidId(botId) && isValidBot(incoming()) 
+          && incoming().userId == existing().userId 
+          && incoming().createdAt == existing().createdAt 
+          && incoming().type == existing().type 
+          && ( 
+            incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']) ||
+            incoming().diff(existing()).affectedKeys().hasOnly(['config', 'updatedAt']) ||
+            incoming().diff(existing()).affectedKeys().hasOnly(['autonomous', 'updatedAt']) ||
+            incoming().diff(existing()).affectedKeys().hasOnly(['name', 'updatedAt']) ||
+            incoming().diff(existing()).affectedKeys().hasOnly(['status', 'config', 'updatedAt'])
+          );
           
         allow delete: if isVerified() && isOwner(userId) && isValidId(botId);
+
+        match /memories/{memoryId} {
+          allow get, list: if isOwner(userId) && isValidId(memoryId);
+          allow create, update: if isVerified() && isOwner(userId) && isValidId(memoryId) && isValidMemory(incoming());
+          allow delete: if isVerified() && isOwner(userId);
+        }
+
+        match /files/{fileId} {
+          allow get, list: if isOwner(userId) && isValidId(fileId);
+          allow create: if isVerified() && isOwner(userId) && isValidId(fileId) && isValidFile(incoming());
+          allow update: if false; // Knowledge assets are immutable once indexed
+          allow delete: if isVerified() && isOwner(userId);
+        }
+
+        match /milestones/{milestoneId} {
+          allow get, list: if isOwner(userId) && isValidId(milestoneId);
+          allow create: if isVerified() && isOwner(userId) && isValidId(milestoneId);
+          allow update, delete: if false;
+        }
       }
 
       match /activities/{activityId} {
         allow get: if isOwner(userId) && isValidId(activityId);
-        allow list: if isOwner(userId); // Narrowed by path
+        allow list: if isOwner(userId); 
         
         allow create: if isVerified() && isOwner(userId) && isValidId(activityId)
           && isValidActivity(incoming())

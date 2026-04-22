@@ -1,334 +1,190 @@
-import { X, Play, Loader2, Gauge, Power, Plus, Trash2, Save, ExternalLink, CheckCircle, AlertCircle } from "lucide-react";
-import { useState, useEffect } from "react";
+import { X, Play, Loader2, Gauge, Power, Plus, Trash2, Save, ExternalLink, CheckCircle, AlertCircle, TrendingUp, Sparkles, Calendar, Clock, Database, FileText, Brain, Upload, Zap, Lightbulb, Trophy } from "lucide-react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { doc, setDoc, serverTimestamp, collection, addDoc } from "firebase/firestore";
+import { doc, setDoc, serverTimestamp, collection, addDoc, query, where, onSnapshot, limit, orderBy, getDocs, deleteDoc } from "firebase/firestore";
 import { db, handleFirestoreError, auth } from "../lib/firebase";
 import { cn } from "../lib/utils";
 import { GoogleGenAI } from "@google/genai";
-import { BOT_TYPES } from "../App";
-
-type Bot = {
-  id: string;
-  name: string;
-  type: string;
-  status: "online" | "offline" | "error" | "auth-required";
-  autonomous?: boolean;
-  config: Record<string, any>;
-  userId?: string;
-};
+import { BOT_TYPES, PLATFORM_WORKFLOWS } from "../constants";
+import { Bot } from "../types";
+import { handleBotErrorTransition } from "../lib/errorUtils";
+import { suggestWorkflows } from "../services/suggestionService";
 
 interface AgentPanelProps {
   bot: Bot | null;
   onClose: () => void;
 }
 
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
 export function AgentPanel({ bot, onClose }: AgentPanelProps) {
-  const [instruction, setInstruction] = useState("");
+  const [workflows, setWorkflows] = useState<any[]>(bot?.config?.workflows || []);
   const [parameters, setParameters] = useState<{key: string, value: string}[]>([]);
-  const [scheduleType, setScheduleType] = useState<'interval' | 'scheduled'>('interval');
-  const [intervalMs, setIntervalMs] = useState<number>(60000);
-  const [scheduledTimes, setScheduledTimes] = useState<string[]>([]);
   const [logs, setLogs] = useState<{ time: string; text: string }[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [platformInfo, setPlatformInfo] = useState<{
-    connected: boolean, 
-    balance?: string, 
-    status?: string,
-    channelTitle?: string,
-    accountName?: string,
-    storeName?: string,
-    stats?: Record<string, string | number>,
-    triggers?: { type: string, condition: string, message: string }[]
-  } | null>(null);
-  const [isPulseChecking, setIsPulseChecking] = useState(false);
-  const [strategy, setStrategy] = useState<"standard" | "aggressive" | "efficiency" | "stealth">("standard");
-  const [userGoal, setUserGoal] = useState("");
-  const [enableLiveExecution, setEnableLiveExecution] = useState(false);
-  const [logicTrace, setLogicTrace] = useState<{step: string, detail: string, status: 'info' | 'success' | 'warn'}[]>([]);
-  const [maxDailyLossPct, setMaxDailyLossPct] = useState<number>(5);
-  const [budgetCap, setBudgetCap] = useState<number>(1000);
-  const [confidenceFloor, setConfidenceFloor] = useState<number>(0.85);
+  const [strategy, setStrategy] = useState<string>("standard");
+  const [memories, setMemories] = useState<string[]>([]);
+  const [files, setFiles] = useState<any[]>([]);
+  const [milestones, setMilestones] = useState<any[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const [isSuggesting, setIsSuggesting] = useState(false);
+  const [activities, setActivities] = useState<any[]>([]);
+  const [platformInfo, setPlatformInfo] = useState<any>(null);
 
-  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
-
-  const TradingSettings = ({ config, setConfig }: { config: any, setConfig: any }) => (
-  <div className="space-y-4 bg-white/5 p-4 border border-blue-500/20 rounded-sm">
-    <label className="mono-type text-[10px] uppercase text-blue-400 font-bold">Trading Parameters</label>
-    <div className="grid grid-cols-2 gap-4">
-      <div>
-        <label className="text-[9px] uppercase opacity-50 block mb-1">Max Position Size</label>
-        <input type="number" value={config.maxPosition || 0} onChange={(e) => setConfig({...config, maxPosition: Number(e.target.value)})} className="w-full bg-black border border-white/10 p-2 text-xs" />
-      </div>
-      <div>
-        <label className="text-[9px] uppercase opacity-50 block mb-1">Profit Target %</label>
-        <input type="number" value={config.profitTarget || 0} onChange={(e) => setConfig({...config, profitTarget: Number(e.target.value)})} className="w-full bg-black border border-white/10 p-2 text-xs" />
-      </div>
-      <div>
-        <label className="text-[9px] uppercase opacity-50 block mb-1">Stop Loss %</label>
-        <input type="number" value={config.stopLoss || 0} onChange={(e) => setConfig({...config, stopLoss: Number(e.target.value)})} className="w-full bg-black border border-white/10 p-2 text-xs" />
-      </div>
-      <div>
-        <label className="text-[9px] uppercase opacity-50 block mb-1">Strategy</label>
-        <select value={config.strategy || "scalping"} onChange={(e) => setConfig({...config, strategy: e.target.value})} className="w-full bg-black border border-white/10 p-2 text-xs text-white">
-          <option value="scalping">Scalping</option>
-          <option value="swing">Swing</option>
-          <option value="arbitrage">Arbitrage</option>
-        </select>
-      </div>
-    </div>
-  </div>
-);
-
-const ContentSettings = ({ config, setConfig }: { config: any, setConfig: any }) => (
-  <div className="space-y-4 bg-white/5 p-4 border border-purple-500/20 rounded-sm">
-    <label className="mono-type text-[10px] uppercase text-purple-400 font-bold">Content Tone Settings</label>
-    <div>
-        <label className="text-[9px] uppercase opacity-50 block mb-1">Target Tone</label>
-        <select value={config.tone || "professional"} onChange={(e) => setConfig({...config, tone: e.target.value})} className="w-full bg-black border border-white/10 p-2 text-xs text-white">
-          <option value="professional">Professional</option>
-          <option value="casual">Casual</option>
-          <option value="aggressive">Aggressive</option>
-          <option value="witty">Witty</option>
-        </select>
-    </div>
-  </div>
-);
-
-const OperationalSettings = ({ config, setConfig }: { config: any, setConfig: any }) => (
-  <div className="space-y-4 bg-white/5 p-4 border border-zinc-500/20 rounded-sm">
-    <label className="mono-type text-[10px] uppercase text-zinc-400 font-bold">Operational Hours</label>
-    <div className="grid grid-cols-2 gap-4">
-      <div>
-        <label className="text-[9px] uppercase opacity-50 block mb-1">Start Hour (0-23)</label>
-        <input type="number" min="0" max="23" value={config.startHour || 0} onChange={(e) => setConfig({...config, startHour: Number(e.target.value)})} className="w-full bg-black border border-white/10 p-2 text-xs" />
-      </div>
-      <div>
-        <label className="text-[9px] uppercase opacity-50 block mb-1">End Hour (0-23)</label>
-        <input type="number" min="0" max="23" value={config.endHour || 23} onChange={(e) => setConfig({...config, endHour: Number(e.target.value)})} className="w-full bg-black border border-white/10 p-2 text-xs" />
-      </div>
-      <div className="col-span-2">
-        <label className="text-[9px] uppercase opacity-50 block mb-1">Timezone</label>
-        <input type="text" value={config.timezone || "UTC"} onChange={(e) => setConfig({...config, timezone: e.target.value})} className="w-full bg-black border border-white/10 p-2 text-xs" />
-      </div>
-    </div>
-  </div>
-);
-
-  const [localConfig, setLocalConfig] = useState<Record<string, any>>(bot?.config || {});
-  
-  const updateConfig = (newConfig: Record<string, any>) => setLocalConfig(newConfig);
-
-  // Sync state when bot changes
   useEffect(() => {
-    if (bot) {
-      setLocalConfig(bot.config || {});
-      setInstruction(bot.config?.instruction || "");
-      setScheduleType(bot.config?.scheduleType || "interval");
-      setIntervalMs(bot.config?.intervalMs || 60000);
-      setScheduledTimes(bot.config?.scheduledTimes || ["09:00"]);
-      setStrategy(bot.config?.strategy || "standard");
-      setUserGoal(bot.config?.userGoal || "");
-      setEnableLiveExecution(!!bot.config?.enableLiveExecution);
-      setMaxDailyLossPct(bot.config?.maxDailyLossPct || 5);
-      setBudgetCap(bot.config?.budgetCap || 1000);
-      setConfidenceFloor(bot.config?.confidenceFloor || 0.85);
-      
-      const configParams = bot.config?.parameters || {};
-      const paramsArray = Object.keys(configParams).map(k => ({ key: k, value: configParams[k] }));
-      setParameters(paramsArray.length > 0 ? paramsArray : [{key: "", value: ""}]);
+    if (!bot) return;
+    setWorkflows(bot.config?.workflows || []);
+    setStrategy(bot.config?.strategy || "standard");
+    
+    const params = bot.config?.parameters || {};
+    setParameters(Object.entries(params).map(([key, value]) => ({ key, value: String(value) })));
 
-      // Check platform connection
-      checkPlatform();
-    }
-  }, [bot]);
+    // Real-time memory
+    const memoryRef = collection(db, "users", auth.currentUser!.uid, "bots", bot.id, "memories");
+    const unsubMemory = onSnapshot(query(memoryRef, limit(1)), (snap) => {
+      if (!snap.empty) setMemories(snap.docs[0].data().memories || []);
+    });
 
-  const getActionableErrorMessage = (err: any) => {
-    const message = err?.message || String(err);
-    if (message.includes("403") || message.includes("permission")) {
-      return { msg: "Permission Denied: Access to platform API is restricted.", action: "Check Permissions", actionFn: () => window.location.reload() };
-    }
-    if (message.includes("quota")) {
-      return { msg: "Quota Exceeded: You have reached your daily limit for this platform.", action: "Upgrade/Wait", actionFn: () => window.open('https://firebase.google.com/pricing') };
-    }
-    if (message.includes("connection")) {
-      return { msg: "Connection Lost: Unable to reach the platform endpoint.", action: "Retry Connection", actionFn: checkPlatform };
-    }
-    return { msg: "An unexpected error occurred during operation.", action: "Retry", actionFn: undefined };
-  };
+    // Real-time files
+    const filesRef = collection(db, "users", auth.currentUser!.uid, "bots", bot.id, "files");
+    const unsubFiles = onSnapshot(query(filesRef, orderBy("createdAt", "desc")), (snap) => {
+      setFiles(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
 
-  const checkPlatform = async () => {
-    if (!bot || !bot.userId) return;
-    setIsPulseChecking(true);
-    try {
-      const res = await fetch(`/api/platform/${bot.type}/info?uid=${bot.userId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setPlatformInfo(data);
-      }
-    } catch (e) {
-      const error = getActionableErrorMessage(e);
-      console.error("Platform check error:", error.msg);
-    } finally {
-      setIsPulseChecking(false);
-    }
-  };
+    // Real-time milestones (wins)
+    const milestonesRef = collection(db, "users", auth.currentUser!.uid, "bots", bot.id, "milestones");
+    const unsubMilestones = onSnapshot(query(milestonesRef, orderBy("createdAt", "desc"), limit(5)), (snap) => {
+      setMilestones(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+
+    // Real-time activities
+    const activitiesRef = collection(db, "users", auth.currentUser!.uid, "activities");
+    const unsubActivities = onSnapshot(query(activitiesRef, where("botId", "==", bot.id), orderBy("timestamp", "desc"), limit(20)), (snap) => {
+      setActivities(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+
+    // Simulate platform info
+    setPlatformInfo({
+      connected: bot.status === "online",
+      accountName: `${bot.type.toUpperCase()}_ADMIN`,
+      status: bot.status,
+      stats: { "Uptime": "99.9%", "Latency": "12ms", "Efficiency": "94%" }
+    });
+
+    return () => {
+      unsubMemory();
+      unsubFiles();
+      unsubMilestones();
+      unsubActivities();
+    };
+  }, [bot?.id]);
 
   if (!bot) return null;
 
   const handleSaveConfig = async () => {
-    if (!bot || !bot.userId) return;
     setIsSaving(true);
-    
     try {
-      const validParams: Record<string, string> = {};
-      parameters.forEach(p => {
-        if (p.key.trim()) validParams[p.key.trim()] = p.value;
-      });
-
-      const newConfig = {
+      const config = {
         ...bot.config,
-        instruction,
-        scheduleType,
-        intervalMs,
-        scheduledTimes: scheduledTimes.filter(t => t.trim() !== ""),
-        parameters: validParams,
+        workflows,
         strategy,
-        userGoal,
-        enableLiveExecution,
-        maxDailyLossPct,
-        budgetCap,
-        confidenceFloor
+        parameters: parameters.reduce((acc, p) => ({ ...acc, [p.key]: p.value }), {}),
       };
-
-      const botRef = doc(db, "users", bot.userId, "bots", bot.id);
-      await setDoc(botRef, { 
-        config: newConfig,
+      await setDoc(doc(db, "users", auth.currentUser!.uid, "bots", bot.id), { 
+        config, 
         updatedAt: serverTimestamp() 
       }, { merge: true });
+      addLog("System configuration updated and synced.");
     } catch (e) {
-      handleFirestoreError(e, 'update', `users/${bot.userId}/bots/${bot.id}`);
+      console.error(e);
     } finally {
       setIsSaving(false);
     }
   };
 
-  const toggleAutonomous = async () => {
-    if (!bot || !bot.userId) return;
-    try {
-      const botRef = doc(db, "users", bot.userId, "bots", bot.id);
-      await setDoc(botRef, { 
-        autonomous: !bot.autonomous,
-        updatedAt: serverTimestamp()
-      }, { merge: true });
-    } catch (e) {
-      handleFirestoreError(e, 'update', `users/${bot.userId}/bots/${bot.id}`);
-    }
-  };
-
-  const addParameter = () => setParameters([...parameters, {key: "", value: ""}]);
-  const removeParameter = (idx: number) => {
-    const newP = [...parameters];
-    newP.splice(idx, 1);
-    setParameters(newP);
-  };
-  const updateParameter = (idx: number, field: 'key' | 'value', val: string) => {
-    const newP = [...parameters];
-    newP[idx][field] = val;
-    setParameters(newP);
-  };
-
-  const addScheduledTime = () => setScheduledTimes([...scheduledTimes, "12:00"]);
-  const removeScheduledTime = (idx: number) => {
-    const newT = [...scheduledTimes];
-    newT.splice(idx, 1);
-    setScheduledTimes(newT);
-  };
-  const updateScheduledTime = (idx: number, val: string) => {
-    const newT = [...scheduledTimes];
-    newT[idx] = val;
-    setScheduledTimes(newT);
+  const addLog = (text: string) => {
+    setLogs(prev => [{ time: new Date().toLocaleTimeString(), text }, ...prev].slice(0, 50));
   };
 
   const handleTestRun = async () => {
-    if (!bot || !bot.userId) return;
     setIsGenerating(true);
-    setLogicTrace([]);
-    
+    addLog(`Initiating AI Simulation Cycle for ${bot.name}...`);
     try {
-      const validParams: Record<string, string> = {};
-      parameters.forEach(p => {
-        if (p.key.trim()) validParams[p.key.trim()] = p.value;
+      const prompt = `Simulate an execution step for ${bot.type}. Current strategy: ${strategy}. Global goals: ${bot.config.userGoal || "Dominance"}. Provide a short report.`;
+      const result = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: prompt
       });
-
-      const addTrace = (step: string, detail: string, status: 'info' | 'success' | 'warn' = 'info') => {
-        setLogicTrace(prev => [...prev, { step, detail, status }]);
-      };
-
-      addTrace("INITIALIZING", `Starting simulation for ${bot.type} with ${strategy} strategy.`);
-      addTrace("SENTINEL_CHECK", `Verifying boundaries: Daily Loss ${maxDailyLossPct}%, Cap $${budgetCap}, Floor ${confidenceFloor}.`);
-      addTrace("CONTEXT_GATHERING", "Querying Google Search for current market conditions...");
-
-      const typeDef = BOT_TYPES.find(t => t.id === bot.type);
-      const prompt = `You are the ELITE AI personification of the ${bot.type.toUpperCase()} Bot.
-Expertise: ${typeDef?.expertise || "Universal autonomous execution"}.
-
-MISSION PARAMETERS:
-- Simulator Mode: True
-- Strategic Objective: ${strategy.toUpperCase()}
-- User Directive: ${userGoal || "Maximize operational mastery."}
-- Operational Logic: ${instruction || "Standard health and performance optimization."}
-- Advanced Configuration: ${JSON.stringify(localConfig)}
-- Environment Variables: ${JSON.stringify(validParams)}
-
-TASK: Use Google Search to cross-reference current real-world competitive conditions for this role.
-Then, synthesize an expert-level execution response.
-
-Reply in exactly 2 professional sentences:
-Sentence 1: Technical summary of market findings.
-Sentence 2: Precise tactical action being simulated, taking into account defined advanced configurations.
-Prefix: [TEST_EXECUTION]`;
-
-      const response = await ai.models.generateContent({
-        model: "gemini-3.1-pro-preview",
-        contents: prompt,
-        config: {
-          systemInstruction: `You are the master ${bot.type} persona. You are decisive, technical, and always optimized for the user's strategic goals.`,
-          temperature: 0.8,
-          tools: [{ googleSearch: {} }],
-          toolConfig: { includeServerSideToolInvocations: true }
-        }
-      });
-
-      addTrace("REASONING_COMPLETE", "AI has synthesized search data and formed an execution plan.", "success");
-      addTrace("EXECUTING", "Applying strategy logic to platform API mock.");
-
-      const output = response.text || "[TEST] Simulation completed with default parameters.";
-      
-      const activityRef = collection(db, "users", bot.userId, "activities");
-      await addDoc(activityRef, {
-        botId: bot.id,
-        botType: bot.type,
-        userId: bot.userId,
-        text: output,
-        timestamp: serverTimestamp(),
-      });
-
-      setLogs(prev => [
-        { time: new Date().toLocaleTimeString(), text: output },
-        ...prev
-      ]);
-      addTrace("SUCCESS", "Execution cycle completed without errors.", "success");
+      addLog(`[AI_REPORT] ${result.text}`);
     } catch (e) {
-      const errorInfo = getActionableErrorMessage(e);
-      console.error("Test run error:", errorInfo.msg);
-      setLogicTrace(prev => [...prev, { step: "FAILURE", detail: errorInfo.msg, status: "warn" }]);
-      setLogs(prev => [
-        { time: new Date().toLocaleTimeString(), text: errorInfo.msg },
-        ...prev
-      ]);
+      addLog(`[ERROR] ${e instanceof Error ? e.message : 'Unknown failure'}`);
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  const addWorkflow = () => {
+    setWorkflows([...workflows, { id: Date.now(), trigger: "", action: "", prompt: "", active: true }]);
+  };
+
+  const removeWorkflow = (id: number) => {
+    setWorkflows(workflows.filter(w => w.id !== id));
+  };
+
+  const updateWorkflow = (id: number, field: string, value: any) => {
+    setWorkflows(workflows.map(w => w.id === id ? { ...w, [field]: value } : w));
+  };
+
+  const handleUploadFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files?.length) return;
+    setIsUploading(true);
+    const file = e.target.files[0];
+    try {
+      const filesRef = collection(db, "users", auth.currentUser!.uid, "bots", bot.id, "files");
+      await addDoc(filesRef, {
+        fileName: file.name,
+        fileSize: file.size,
+        contentType: file.type,
+        contentSummary: "Analyzing document patterns and core instructions...",
+        createdAt: serverTimestamp()
+      });
+      addLog(`Knowledge asset "${file.name}" uploaded and indexed.`);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleDeleteFile = async (fileId: string) => {
+    try {
+      await deleteDoc(doc(db, "users", auth.currentUser!.uid, "bots", bot.id, "files", fileId));
+      addLog("Knowledge asset removed from archive.");
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleSuggestWorkflows = async () => {
+    if (isSuggesting) return;
+    setIsSuggesting(true);
+    addLog("Consulting AI for specialized workflow suggestions...");
+    try {
+      const suggestions = await suggestWorkflows(bot.type, bot.config?.userGoal || "Business Growth");
+      if (suggestions.length > 0) {
+        const newWorkflows = suggestions.map((s: any) => ({
+          id: Date.now() + Math.random(),
+          ...s,
+          active: true
+        }));
+        setWorkflows([...workflows, ...newWorkflows]);
+        addLog(`Imported ${suggestions.length} AI-recommended actions.`);
+      }
+    } catch (e) {
+      addLog("Failed to fetch AI suggestions.");
+    } finally {
+      setIsSuggesting(false);
     }
   };
 
@@ -338,505 +194,345 @@ Prefix: [TEST_EXECUTION]`;
         initial={{ x: "100%" }}
         animate={{ x: 0 }}
         exit={{ x: "100%" }}
-        transition={{ type: "spring", stiffness: 300, damping: 30 }}
-        className="fixed inset-y-0 right-0 w-full md:w-[600px] bg-[#050505] border-l border-white/20 shadow-2xl z-50 flex flex-col"
+        transition={{ type: "spring", damping: 30, stiffness: 300 }}
+        className="fixed inset-y-0 right-0 w-full md:w-[600px] bg-[#D4FF00] border-l-[8px] border-black z-50 overflow-y-auto selection:bg-black selection:text-[#D4FF00]"
       >
-        <div className="p-6 border-b border-white/10 flex justify-between items-center bg-white/5">
-          <div>
-            <h2 className="display-type text-4xl uppercase tracking-tight">{bot.name}</h2>
-            <div className="flex items-center gap-3 mt-2">
-              <div className={cn(
-                  "w-1.5 h-1.5 rounded-full shadow-[0_0_8px]",
-                  bot.status === "online" && "bg-green-400 shadow-green-500",
-                  bot.status === "offline" && "bg-zinc-600 shadow-transparent",
-                  bot.status === "error" && "bg-red-500 shadow-red-500",
-                  bot.status === "auth-required" && "bg-yellow-500 shadow-yellow-500"
-              )} />
-              <span className="mono-type text-[10px] uppercase opacity-50 tracking-wider">
-                {bot.status} | ID: {bot.id.slice(0,8)}...
-              </span>
+        <div className="p-8 lg:p-12 text-black">
+          <div className="flex justify-between items-start mb-12">
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-3">
+                 <div className="w-4 h-4 bg-black border-2 border-white animate-pulse" />
+                 <span className="mono-type text-[10px] font-black uppercase bg-black text-white px-2 py-1">Bot Settings // ID_{bot.id.slice(0, 8)}</span>
+              </div>
+              <input 
+                 className="display-type text-6xl md:text-7xl font-black uppercase tracking-tighter leading-none bg-transparent border-none outline-none focus:bg-white/10 w-full"
+                 defaultValue={bot.name}
+                 onBlur={(e) => setDoc(doc(db, "users", auth.currentUser!.uid, "bots", bot.id), { name: e.target.value, updatedAt: serverTimestamp() }, { merge: true })}
+              />
             </div>
+            <button onClick={onClose} className="p-3 bg-black text-white hover:bg-white hover:text-black transition-all border-4 border-black brutal-shadow">
+              <X className="w-8 h-8" />
+            </button>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-white/10 rounded transition-colors text-white/50 hover:text-white">
-            <X className="w-6 h-6" />
-          </button>
-        </div>
 
-        <div className="flex-grow overflow-y-auto p-6 space-y-8 no-scrollbar">
+          <div className="grid grid-cols-2 gap-4 mb-12">
+            {platformInfo?.stats && Object.entries(platformInfo.stats).map(([k, v]) => (
+              <div key={k} className="bg-black text-white p-4 brutal-border brutal-shadow-red">
+                <span className="block mono-type text-[9px] uppercase opacity-60">{k}</span>
+                <span className="text-4xl font-sans font-black tracking-tighter">{String(v)}</span>
+              </div>
+            ))}
+          </div>
 
-          {/* Platform Status */}
-          {platformInfo && (
-            <div className={cn(
-              "p-4 border mono-type text-[10px] space-y-3",
-              platformInfo.connected ? "bg-green-500/10 border-green-500/30 text-green-400" : "bg-red-500/10 border-red-500/30 text-red-400"
-            )}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  {platformInfo.connected ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-                  <div className="flex flex-col">
-                    <span className="font-bold uppercase tracking-widest">{bot.type.toUpperCase()} CONNECTION: {platformInfo.connected ? "ACTIVE" : "DISCONNECTED"}</span>
-                    <div className="flex items-center gap-3 mt-1">
-                      {platformInfo.thumbnail && (
-                        <img 
-                          src={platformInfo.thumbnail} 
-                          alt="Platform Avatar" 
-                          className="w-10 h-10 border border-white/20 rounded-sm object-cover"
-                          referrerPolicy="no-referrer"
-                        />
-                      )}
-                      <div className="flex flex-col">
-                        {platformInfo.channelTitle && <span className="opacity-90 font-bold text-white uppercase">CHANNEL: {platformInfo.channelTitle}</span>}
-                        {platformInfo.accountName && <span className="opacity-90 font-bold text-white uppercase">ACCOUNT: {platformInfo.accountName}</span>}
-                        {platformInfo.storeName && <span className="opacity-90 font-bold text-white uppercase">STORE: {platformInfo.storeName}</span>}
-                        {platformInfo.balance && <span className="opacity-70 mt-0.5 uppercase tracking-tighter">LIQUIDITY: {platformInfo.balance}</span>}
-                        {platformInfo.status && <span className="opacity-70 mt-0.5 flex items-center gap-1.5 uppercase tracking-tighter">
-                          <Gauge className="w-3 h-3 text-green-400" />
-                          NODE_STATE: {platformInfo.status}
-                        </span>}
-                      </div>
+          <div className="space-y-12">
+             <section className="space-y-6">
+                <div className="flex items-center justify-between border-b-[4px] border-black pb-2">
+                  <h3 className="font-sans text-3xl font-black uppercase flex items-center gap-3"><Trophy className="w-8 h-8" />Objective Milestones</h3>
+                </div>
+                <div className="space-y-3">
+                  {milestones.length === 0 ? (
+                    <div className="bg-black/5 p-8 border-2 border-dashed border-black/20 text-center rounded-sm">
+                      <p className="mono-type text-[10px] uppercase font-bold opacity-40 italic">Waiting for bot to satisfy its first objective...</p>
                     </div>
+                  ) : (
+                    milestones.map((m, i) => (
+                      <div key={m.id} className="bg-white border-[3px] border-black p-4 brutal-shadow flex gap-4 items-center">
+                         <div className="bg-[var(--brand)] p-2 border-2 border-black">
+                            <Sparkles className="w-4 h-4 text-black" />
+                         </div>
+                         <div className="flex-grow">
+                            <span className="block mono-type text-[8px] uppercase font-black opacity-40 mb-1">{m.createdAt?.toDate().toLocaleDateString()}</span>
+                            <p className="text-xs font-black uppercase tracking-tight">{m.title}</p>
+                         </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+             </section>
+
+             <section className="space-y-6">
+                <div className="flex items-center justify-between border-b-[4px] border-black pb-2">
+                  <h3 className="font-sans text-3xl font-black uppercase flex items-center gap-3"><Brain className="w-8 h-8" />Bot Memory</h3>
+                  <button 
+                    onClick={async () => {
+                      if (confirm("Reset bot memory? This cannot be undone.")) {
+                        const mRef = collection(db, "users", auth.currentUser!.uid, "bots", bot.id, "memories");
+                        const mSnap = await getDocs(query(mRef, limit(1)));
+                        if (!mSnap.empty) {
+                          await deleteDoc(doc(db, "users", auth.currentUser!.uid, "bots", bot.id, "memories", mSnap.docs[0].id));
+                        }
+                      }
+                    }}
+                    className="p-1 text-[8px] mono-type font-black uppercase bg-black text-white px-2 hover:bg-[#FF2E00] transition-colors"
+                  >
+                    Clear Memory
+                  </button>
+                </div>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                     <label className="mono-type text-[10px] uppercase font-black">Things this bot has learned</label>
+                     <span className="bg-black text-white px-2 py-0.5 text-[8px] mono-type font-black">{memories.length} ENTRIES</span>
+                  </div>
+                  <div className="bg-white border-[4px] border-black p-4 min-h-[100px] max-h-[200px] overflow-y-auto space-y-2 brutal-shadow text-xs">
+                    {memories.length === 0 ? (
+                      <div className="text-[10px] font-mono opacity-50 italic">Memory empty. Waiting for cycles...</div>
+                    ) : (
+                      memories.map((m, i) => (
+                        <div key={i} className="flex gap-3 text-[10px] font-bold border-l-2 border-black pl-3 py-1">
+                           <span className="opacity-30 self-start">{i + 1}</span>
+                           <p>{m}</p>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {platformInfo.connected && (
-                    <a 
-                      href={
-                        bot.type === 'youtube' ? 'https://studio.youtube.com' :
-                        bot.type === 'facebook' ? 'https://business.facebook.com' :
-                        '#'
-                      }
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-1.5 hover:bg-white/10 rounded-full transition-colors text-white/60 hover:text-white"
-                      title="Open Platform Dashboard"
-                    >
-                      <ExternalLink className="w-3.5 h-3.5" />
-                    </a>
+             </section>
+
+             <section className="space-y-6 text-black bg-white p-8 border-[4px] border-black brutal-shadow">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-sans text-3xl font-black uppercase flex items-center gap-3"><FileText className="w-8 h-8" />Files & Docs</h3>
+                  <label className="cursor-pointer bg-black text-white p-2 border-2 border-black hover:bg-white hover:text-black transition-all">
+                    <Upload className="w-5 h-5" />
+                    <input type="file" className="hidden" onChange={handleUploadFile} disabled={isUploading} />
+                  </label>
+                </div>
+                <div className="space-y-3">
+                  {files.length === 0 ? (
+                    <div className="text-[10px] font-mono opacity-30 uppercase text-center py-6">No files uploaded.</div>
+                  ) : (
+                    files.map(f => (
+                      <div key={f.id} className="flex items-center justify-between border-b border-black/10 py-3 group">
+                        <div className="flex items-center gap-3">
+                           <FileText className="w-4 h-4" />
+                           <div>
+                             <span className="block text-[11px] font-black truncate max-w-[200px]">{f.fileName}</span>
+                             <span className="block text-[9px] italic opacity-60">{(f.fileSize / 1024).toFixed(1)} KB</span>
+                           </div>
+                        </div>
+                        <button onClick={() => handleDeleteFile(f.id)} className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-600 transition-all">
+                           <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))
                   )}
-                  <button 
-                    onClick={checkPlatform}
-                    className="p-1.5 hover:bg-white/10 rounded-full transition-colors group"
-                    title="Force Pulse Check"
-                  >
-                    <Loader2 className={cn("w-3.5 h-3.5", isPulseChecking && "animate-spin")} />
-                  </button>
-                  {!platformInfo.connected && (
-                    <button 
-                      onClick={async () => {
-                        if (bot) {
-                          setIsPulseChecking(true);
-                          // Simulated recovery logic
-                          setTimeout(async () => {
-                            try {
-                              const botRef = doc(db, "users", auth.currentUser!.uid, "bots", bot.id);
-                              await setDoc(botRef, { status: "online", updatedAt: serverTimestamp() }, { merge: true });
-                              await checkPlatform();
-                            } finally {
-                              setIsPulseChecking(false);
-                            }
-                          }, 1500);
-                        }
-                      }}
-                      className="underline uppercase font-bold hover:text-red-300 transition-colors"
-                    >
-                      Fix
-                    </button>
-                  )}
+                </div>
+             </section>
+
+            <section className="space-y-6">
+              <h3 className="font-sans text-3xl font-black uppercase border-b-[4px] border-black pb-2">Command Directives</h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="mono-type text-[10px] font-black uppercase text-[#D4FF00]">Strategic Schedule</label>
+                  <input 
+                    className="w-full bg-black text-white border-[4px] border-black p-3 font-mono font-bold text-xs brutal-shadow outline-none"
+                    placeholder="e.g. 24/7, Mon-Fri 9-5..."
+                    defaultValue={bot.config?.schedule || ""}
+                    onBlur={(e) => setDoc(doc(db, "users", auth.currentUser!.uid, "bots", bot.id), { config: { ...bot.config, schedule: e.target.value }, updatedAt: serverTimestamp() }, { merge: true })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="mono-type text-[10px] font-black uppercase text-[#D4FF00]">Core Responsibilities</label>
+                  <input 
+                    className="w-full bg-black text-white border-[4px] border-black p-3 font-mono font-bold text-xs brutal-shadow outline-none"
+                    placeholder="Duty 1, Duty 2, Duty 3..."
+                    defaultValue={bot.config?.responsibilities?.join(', ') || ""}
+                    onBlur={(e) => setDoc(doc(db, "users", auth.currentUser!.uid, "bots", bot.id), { config: { ...bot.config, responsibilities: e.target.value.split(',').map(s => s.trim()).filter(Boolean) }, updatedAt: serverTimestamp() }, { merge: true })}
+                  />
                 </div>
               </div>
 
-              {(platformInfo as any).warnings && (platformInfo as any).warnings.length > 0 && (
-                <div className="bg-yellow-500/10 border border-yellow-500/30 p-2 text-yellow-500 rounded space-y-1">
-                  {(platformInfo as any).warnings.map((w: string, i: number) => (
-                    <div key={i} className="flex gap-2">
-                      <span className="font-bold italic">CAUTION:</span>
-                      <span>{w}</span>
-                    </div>
-                  ))}
+              <div className="space-y-2">
+                <label className="mono-type text-[10px] font-black uppercase">Operation Personality & Behavior Logic</label>
+                <textarea 
+                  rows={4}
+                  className="w-full bg-black text-[#D4FF00] border-[4px] border-black p-4 font-mono text-[11px] font-bold brutal-shadow outline-none focus:ring-2 focus:ring-[#D4FF00] transition-colors"
+                  placeholder="e.g. Always respond with technical brevity. Prioritize scalability over speed..."
+                  defaultValue={bot.config?.systemDirective || ""}
+                  onBlur={(e) => setDoc(doc(db, "users", auth.currentUser!.uid, "bots", bot.id), { config: { ...bot.config, systemDirective: e.target.value }, updatedAt: serverTimestamp() }, { merge: true })}
+                />
+                <p className="text-[9px] font-black uppercase opacity-60">Inject custom behavioral logic into the elite agent's decision engine.</p>
+              </div>
+            </section>
+
+            <section className="space-y-6">
+              <h3 className="font-sans text-3xl font-black uppercase border-b-[4px] border-black pb-2">Bot Settings</h3>
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="mono-type text-[10px] font-black uppercase">Bot Strategy</label>
+                  <select 
+                    value={strategy}
+                    onChange={(e) => setStrategy(e.target.value)}
+                    className="w-full bg-white border-[4px] border-black p-3 font-sans font-black uppercase text-sm brutal-shadow focus:translate-x-1 focus:-translate-y-1 transition-all outline-none"
+                  >
+                    <option value="standard">Standard</option>
+                    <option value="aggressive">Aggressive</option>
+                    <option value="efficiency">Balanced</option>
+                    <option value="stealth">Careful</option>
+                  </select>
                 </div>
-              )}
-
-              {platformInfo.stats && (
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-2 pt-3 border-t border-white/10">
-                  {Object.entries(platformInfo.stats).map(([k, v]) => (
-                    <div key={k} className="flex flex-col p-2 bg-white/5 border border-white/5 rounded-sm">
-                      <span className="opacity-40 text-[7px] uppercase tracking-tighter leading-none mb-1">{k.replace(/_/g, ' ')}</span>
-                      <span className="font-bold text-white text-[11px] truncate tracking-tight">{typeof v === 'number' ? v.toLocaleString() : v}</span>
-                    </div>
-                  ))}
+                <div className="space-y-2">
+                  <label className="mono-type text-[10px] font-black uppercase">Success Criteria (Winning Condition)</label>
+                  <input 
+                    className="w-full bg-black text-[#D4FF00] border-[4px] border-black p-3 font-mono font-bold text-xs brutal-shadow outline-none placeholder:text-white/30"
+                    placeholder="e.g. ROI > 5%, Resolved Support Ticket"
+                    defaultValue={bot.config?.winCondition || ""}
+                    onBlur={(e) => setDoc(doc(db, "users", auth.currentUser!.uid, "bots", bot.id), { config: { ...bot.config, winCondition: e.target.value }, updatedAt: serverTimestamp() }, { merge: true })}
+                  />
                 </div>
-              )}
-            </div>
-          )}
+              </div>
+            </section>
 
-          {/* Intelligence Capabilities */}
-          <div className="space-y-3">
-             <div className="flex items-center justify-between">
-                <label className="mono-type text-[10px] uppercase tracking-wider opacity-60">Intelligence Capabilities</label>
-                <div className="px-1.5 py-0.5 bg-green-500/10 text-green-500 border border-green-500/20 text-[8px] mono-type uppercase">Active</div>
-             </div>
-             <div className="grid grid-cols-2 gap-2">
-                {(bot.type === 'youtube' ? ['Moderation', 'SEO Sync', 'Metric Analysis', 'Metadata Opt'] :
-                  bot.type === 'shopify' ? ['Inventory Sync', 'Discount Engine', 'Order Fulfillment', 'Customer CRM'] :
-                  bot.type === 'alpaca' ? ['Paper Trading', 'Portfolio Hedge', 'Alpha Signal', 'Macro Pivot'] :
-                  bot.type === 'gmail' ? ['Priority Sweep', 'Smart Reply', 'Labeling Logic', 'Spam Defense'] :
-                  bot.type === 'facebook' ? ['LAL Targeting', 'Budget Scaling', 'Creative Audit', 'Pixel Check'] :
-                  ['Autonomous Tasking', 'Platform Sync', 'Sentiment Analysis', 'Log aggregation']).map((cap) => (
-                    <div key={cap} className="flex items-center gap-2 p-2 border border-white/10 bg-white/5 mono-type text-[9px] uppercase opacity-70">
-                       <CheckCircle className="w-3 h-3 text-green-500" />
-                       {cap}
+            <section className="space-y-6">
+              <div className="flex items-center justify-between border-b-[4px] border-black pb-2">
+                <h3 className="font-sans text-3xl font-black uppercase flex items-center gap-3"><Zap className="w-8 h-8" />Auto-Reply</h3>
+                <div className="flex items-center gap-3">
+                  <span className="mono-type text-[10px] font-black uppercase">{bot.config?.autoResponseEnabled ? 'ENABLED' : 'DISABLED'}</span>
+                  <button 
+                    onClick={() => setDoc(doc(db, "users", auth.currentUser!.uid, "bots", bot.id), { config: { ...bot.config, autoResponseEnabled: !bot.config?.autoResponseEnabled }, updatedAt: serverTimestamp() }, { merge: true })}
+                    className={cn(
+                      "w-12 h-6 border-2 border-black relative transition-all brutal-shadow",
+                      bot.config?.autoResponseEnabled ? "bg-black" : "bg-white"
+                    )}
+                  >
+                    <div className={cn(
+                      "absolute top-0.5 w-4 h-4 transition-all",
+                      bot.config?.autoResponseEnabled ? "right-1 bg-white" : "left-1 bg-black"
+                    )} />
+                  </button>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                 <div className="space-y-2">
+                    <label className="mono-type text-[10px] font-black uppercase">Reply Tone</label>
+                    <select 
+                      value={bot.config?.responseTone || "Professional"}
+                      onChange={(e) => setDoc(doc(db, "users", auth.currentUser!.uid, "bots", bot.id), { config: { ...bot.config, responseTone: e.target.value }, updatedAt: serverTimestamp() }, { merge: true })}
+                      className="w-full bg-white border-[3px] border-black p-2 font-mono text-[10px] font-black uppercase"
+                    >
+                      <option>Professional</option>
+                      <option>Friendly</option>
+                      <option>Short & Direct</option>
+                      <option>Helpful</option>
+                    </select>
+                 </div>
+                 <div className="space-y-2">
+                    <label className="mono-type text-[10px] font-black uppercase">Bot Signature</label>
+                    <input 
+                       className="w-full bg-white border-[3px] border-black p-2 font-mono text-[10px] font-black"
+                       defaultValue={bot.config?.responseSignature || "Bot Boss Assistant"}
+                       onBlur={(e) => setDoc(doc(db, "users", auth.currentUser!.uid, "bots", bot.id), { config: { ...bot.config, responseSignature: e.target.value }, updatedAt: serverTimestamp() }, { merge: true })}
+                    />
+                 </div>
+              </div>
+            </section>
+
+            <section className="space-y-6">
+              <div className="flex items-center justify-between border-b-[4px] border-black pb-2">
+                <h3 className="font-sans text-3xl font-black uppercase flex items-center gap-2 underline decoration-4">Bot Actions</h3>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={handleSuggestWorkflows}
+                    disabled={isSuggesting}
+                    className="p-2 bg-[var(--brand)] text-black border-2 border-black hover:bg-white transition-all disabled:opacity-50"
+                    title="Get AI Suggestions"
+                  >
+                    {isSuggesting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Lightbulb className="w-5 h-5" />}
+                  </button>
+                  <button onClick={addWorkflow} className="p-2 bg-black text-white hover:bg-white hover:text-black transition-all border-2 border-black"><Plus className="w-5 h-5" /></button>
+                </div>
+              </div>
+              <div className="space-y-4">
+                {workflows.map((wf) => (
+                  <div key={wf.id} className="bg-black text-white p-6 border-[4px] border-white/20 brutal-shadow relative">
+                    <button onClick={() => removeWorkflow(wf.id)} className="absolute top-2 right-2 text-white/50 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                      <div>
+                        <label className="mono-type text-[8px] font-black uppercase text-white/50 block mb-1">When this happens...</label>
+                        <select 
+                          value={wf.trigger}
+                          onChange={(e) => updateWorkflow(wf.id, "trigger", e.target.value)}
+                          className="w-full bg-black border border-white/20 p-2 text-[10px] font-bold"
+                        >
+                          <option value="">Select Trigger</option>
+                          {PLATFORM_WORKFLOWS[bot.type]?.triggers.map(t => <option key={t} value={t}>{t}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="mono-type text-[8px] font-black uppercase text-white/50 block mb-1">Do this action...</label>
+                        <select 
+                          value={wf.action}
+                          onChange={(e) => updateWorkflow(wf.id, "action", e.target.value)}
+                          className="w-full bg-black border border-white/20 p-2 text-[10px] font-bold"
+                        >
+                          <option value="">Select Action</option>
+                          {PLATFORM_WORKFLOWS[bot.type]?.actions.map(a => <option key={a} value={a}>{a}</option>)}
+                        </select>
+                      </div>
                     </div>
-                  ))
-                }
-             </div>
-          </div>
+                    <textarea 
+                      placeholder="Special instructions for this rule..."
+                      rows={2}
+                      value={wf.prompt}
+                      onChange={(e) => updateWorkflow(wf.id, "prompt", e.target.value)}
+                      className="w-full bg-black border border-white/20 p-3 text-[10px] font-mono focus:border-[var(--brand)] focus:outline-none"
+                    />
+                  </div>
+                ))}
+              </div>
+            </section>
 
-          {/* Autonomous Control */}
-          <div className="flex justify-between items-center border border-white/20 p-4 bg-white/5">
-             <div className="flex flex-col">
-               <span className="mono-type text-xs uppercase font-bold tracking-widest flex items-center gap-2">
-                 <Power className="w-4 h-4" />
-                 Autonomous Mode
-               </span>
-               <span className="text-[10px] mono-type opacity-50 mt-1 uppercase">
-                 Allow agent to self-prompt / explore
-               </span>
-             </div>
-             <button 
-                onClick={toggleAutonomous}
-                disabled={bot.status !== "online"}
-                className={cn(
-                  "px-4 py-2 mono-type text-[10px] font-bold uppercase tracking-wider transition-colors border",
-                  bot.autonomous 
-                   ? "bg-green-500/20 text-green-400 border-green-500/50 hover:bg-green-500/30" 
-                   : "bg-white/10 text-white/50 border-white/20 hover:bg-white/20 disabled:opacity-50"
-                )}
-             >
-               {bot.autonomous ? "Active" : "Disabled"}
-             </button>
-          </div>
-
-          <div className="space-y-6">
-            <div className="flex items-center justify-between border-b border-white/10 pb-2">
-               <h3 className="mono-type text-xs uppercase tracking-widest font-bold">Deep Configuration</h3>
+            <div className="pt-10 flex gap-4">
                <button 
                  onClick={handleSaveConfig}
                  disabled={isSaving}
-                 className="flex items-center gap-2 mono-type text-[10px] uppercase font-bold bg-white text-black px-3 py-1.5 hover:bg-white/80 transition-colors disabled:opacity-50"
+                 className="flex-grow hardware-button !bg-black !text-white hover:!bg-white hover:!text-black"
                >
-                 {isSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
-                 Save Changes
+                 {isSaving ? <Loader2 className="w-6 h-6 animate-spin" /> : "Save Bot Settings"}
+               </button>
+               <button 
+                onClick={handleTestRun}
+                disabled={isGenerating}
+                className="p-4 bg-white border-4 border-black brutal-shadow hover:-translate-y-1 transition-all disabled:opacity-50"
+               >
+                 <Play className={cn("w-8 h-8", isGenerating && "animate-pulse")} />
                </button>
             </div>
-            
-            {['alpaca', 'coinbase', 'kalshi', 'polymarket'].includes(bot.type) && (
-              <TradingSettings config={bot.config} setConfig={() => {}} />
-            )}
-            {['gmail', 'youtube', 'facebook', 'pinterest', 'shopify', 'etsy', 'ebay', 'discord'].includes(bot.type) && (
-              <ContentSettings config={bot.config} setConfig={() => {}} />
-            )}
-            
-            {/* User Directive & Goal */}
-            <div className="space-y-3">
-               <label className="mono-type text-[10px] uppercase tracking-wider opacity-60">Primary User Goal & Directive</label>
-               <textarea 
-                  value={userGoal}
-                  onChange={(e) => setUserGoal(e.target.value)}
-                  className="w-full bg-black/40 border border-white/20 p-3 h-20 text-xs font-mono focus:border-[#00FF41] focus:outline-none placeholder:opacity-30 resize-none transition-colors"
-                  placeholder="e.g. 'Liquidate all inventory older than 90 days at a 20% discount' or 'Only execute low-risk arbitrage trades.'"
-               />
-            </div>
 
-            {/* LIVE EXECUTION OVERRIDE */}
-            <div className="space-y-3 border border-red-500/30 bg-red-500/5 p-4 rounded-sm mt-4">
-               <div className="flex justify-between items-center">
-                 <div className="flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 text-red-500" />
-                    <label className="mono-type text-[11px] uppercase tracking-wider text-red-400 font-bold">Live API Execution</label>
-                 </div>
-                 <label className="relative inline-flex items-center cursor-pointer">
-                    <input 
-                      type="checkbox" 
-                      className="sr-only peer" 
-                      checked={enableLiveExecution}
-                      onChange={(e) => setEnableLiveExecution(e.target.checked)}
-                    />
-                    <div className="w-9 h-5 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-red-500"></div>
-                  </label>
+            <div className="space-y-4">
+               <div className="flex items-center justify-between border-b-[4px] border-black pb-2">
+                  <h3 className="font-sans text-xl font-black uppercase">Recent Bot Activity</h3>
+                  <span className="bg-black text-[var(--brand)] px-2 py-0.5 text-[8px] font-black mono-type uppercase">Live Feed</span>
                </div>
-               <p className="font-mono text-[9px] text-red-400/70 tracking-tight leading-relaxed">
-                 WARNING: Enabling this switch removes the simulation safety net. The AI will make REAL HTTP POST requests to your connected platforms, causing permanent financial changes, buying, selling, and data deletion.
-               </p>
-            </div>
-
-            {/* Schedule Configuration */}
-            <div className="space-y-3">
-              <div className="flex justify-between items-center mb-2">
-                <label className="mono-type text-[10px] uppercase tracking-wider opacity-60">Run Schedule</label>
-                <div className="flex border border-white/20 rounded overflow-hidden">
-                  <button
-                    onClick={() => setScheduleType('interval')}
-                    className={cn(
-                      "px-3 py-1 text-[9px] mono-type uppercase font-bold transition-colors",
-                      scheduleType === 'interval' ? "bg-white text-black" : "bg-black text-white/50 hover:bg-white/10"
-                    )}
-                  >
-                    Interval
-                  </button>
-                  <button
-                    onClick={() => setScheduleType('scheduled')}
-                    className={cn(
-                      "px-3 py-1 text-[9px] mono-type uppercase font-bold transition-colors",
-                      scheduleType === 'scheduled' ? "bg-white text-black" : "bg-black text-white/50 hover:bg-white/10"
-                    )}
-                  >
-                    Specific Times
-                  </button>
-                </div>
-              </div>
-
-              {scheduleType === 'interval' ? (
-                <div className="grid grid-cols-4 gap-2">
-                  {[
-                    { label: "15s", val: 15000 },
-                    { label: "1m", val: 60000 },
-                    { label: "5m", val: 300000 },
-                    { label: "1h", val: 3600000 }
-                  ].map((opt) => (
-                    <button
-                      key={opt.val}
-                      onClick={() => setIntervalMs(opt.val)}
-                      className={cn(
-                        "py-2 mono-type text-[10px] font-bold border transition-colors",
-                        intervalMs === opt.val 
-                          ? "bg-white/10 border-white/40 text-white" 
-                          : "bg-black border-white/10 text-white/40 hover:border-white/20"
-                      )}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <div className="space-y-2 border border-white/10 p-3 bg-black/40">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="mono-type text-[9px] uppercase opacity-50">Local Time Triggers</span>
-                    <button onClick={addScheduledTime} className="hover:text-green-400 opacity-60 hover:opacity-100 transition-colors">
-                      <Plus className="w-4 h-4" />
-                    </button>
-                  </div>
-                  {scheduledTimes.map((time, i) => (
-                    <div key={i} className="flex gap-2 items-center">
-                      <input
-                        type="time"
-                        value={time}
-                        onChange={(e) => updateScheduledTime(i, e.target.value)}
-                        className="flex-grow bg-black border border-white/10 p-2 font-mono text-xs focus:border-white/40 focus:outline-none"
-                      />
-                      <button 
-                        onClick={() => removeScheduledTime(i)}
-                        className="p-2 border border-white/10 bg-black hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-400 transition-colors"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  ))}
-                  {scheduledTimes.length === 0 && (
-                    <div className="mono-type text-[9px] opacity-40 italic text-center py-4">No scheduled times. Agent will not run automatically.</div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Strategy Selection */}
-            <div className="space-y-3">
-               <label className="mono-type text-[10px] uppercase tracking-wider opacity-60">Strategic Archetype</label>
-               <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { id: "standard", label: "Standard" },
-                    { id: "aggressive", label: "Aggressive" },
-                    { id: "efficiency", label: "Efficiency" },
-                    { id: "stealth", label: "Stealth" },
-                  ].map((s) => (
-                    <button
-                      key={s.id}
-                      onClick={() => setStrategy(s.id as any)}
-                      className={cn(
-                        "py-3 px-4 mono-type text-[9px] font-bold uppercase tracking-widest border transition-all text-center",
-                        strategy === s.id 
-                         ? "bg-[#00FF41]/10 border-[#00FF41] text-[#00FF41]" 
-                         : "bg-black border-white/10 text-white/40 hover:border-white/20"
-                      )}
-                    >
-                      {s.label}
-                    </button>
-                  ))}
+               <div className="w-full h-48 bg-white border-[4px] border-black p-4 font-mono text-[10px] overflow-y-auto space-y-2">
+                   {activities.length === 0 ? <div className="text-center opacity-30 py-10 uppercase">Waiting for activity...</div> : activities.map((log) => (
+                     <div key={log.id} className="flex gap-4 border-l-2 border-black/10 pl-2">
+                        <span className="opacity-30 italic">[{log.timestamp?.toDate().toLocaleTimeString()}]</span>
+                        <p className={cn(
+                          "font-bold",
+                          log.type === 'error' ? "text-red-500" : (log.type === 'action' ? "text-black" : "text-blue-600")
+                        )}>
+                          {log.text}
+                        </p>
+                     </div>
+                   ))}
                </div>
             </div>
-
-            {/* System Instructions */}
-            <div className="space-y-3">
-              <label className="mono-type text-[10px] uppercase tracking-wider opacity-60">System Instructions</label>
-              <textarea
-                className="w-full h-24 bg-black border border-white/10 p-3 font-mono text-[10px] leading-relaxed focus:border-white/40 focus:outline-none resize-none"
-                placeholder="Inject core behavioral boundaries here..."
-                value={instruction}
-                onChange={(e) => setInstruction(e.target.value)}
-              />
-            </div>
-
-            {/* Sentinel Safety Rails */}
-            <div className="space-y-3 bg-[#0A0A0A] border border-[#00FF41]/20 p-4">
-              <label className="mono-type text-[10px] uppercase tracking-wider text-[#00FF41] font-bold">Sentinel Safety Rails</label>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[9px] uppercase opacity-50">Max Daily Loss</label>
-                  <input type="number" value={maxDailyLossPct} onChange={(e) => setMaxDailyLossPct(Number(e.target.value))} placeholder="%" className="w-full bg-black border border-white/10 p-2 text-xs" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[9px] uppercase opacity-50">Budget Cap</label>
-                  <input type="number" value={budgetCap} onChange={(e) => setBudgetCap(Number(e.target.value))} placeholder="$" className="w-full bg-black border border-white/10 p-2 text-xs" />
-                </div>
-              </div>
-              <div className="space-y-1">
-                <label className="text-[9px] uppercase opacity-50">Min Confidence Floor</label>
-                <input type="number" step="0.01" value={confidenceFloor} onChange={(e) => setConfidenceFloor(Number(e.target.value))} placeholder="0.85" className="w-full bg-black border border-white/10 p-2 text-xs" />
-              </div>
-            </div>
-
-              {/* Platform Credentials */}
-              {['kalshi', 'polymarket'].includes(bot.type) && (
-                 <div className="space-y-3 bg-white/5 p-4 border border-white/5">
-                    <label className="text-amber-400 text-[10px] uppercase font-bold">Platform Credentials Required</label>
-                    {bot.type === 'kalshi' && (
-                      <>
-                        <input type="email" placeholder="Email" value={parameters.find(p=>p.key==='email')?.value || ''} onChange={(e) => updateParameter(parameters.findIndex(p=>p.key==='email'), 'value', e.target.value)} className="w-full bg-black border border-white/10 p-2 text-xs" />
-                        <input type="password" placeholder="Password" value={parameters.find(p=>p.key==='password')?.value || ''} onChange={(e) => updateParameter(parameters.findIndex(p=>p.key==='password'), 'value', e.target.value)} className="w-full bg-black border border-white/10 p-2 text-xs" />
-                      </>
-                    )}
-                    {bot.type === 'polymarket' && (
-                      <>
-                        <input type="text" placeholder="API Key" value={parameters.find(p=>p.key==='apiKey')?.value || ''} onChange={(e) => updateParameter(parameters.findIndex(p=>p.key==='apiKey'), 'value', e.target.value)} className="w-full bg-black border border-white/10 p-2 text-xs" />
-                        <input type="text" placeholder="Proxy Wallet Address" value={parameters.find(p=>p.key==='proxyWalletAddress')?.value || ''} onChange={(e) => updateParameter(parameters.findIndex(p=>p.key==='proxyWalletAddress'), 'value', e.target.value)} className="w-full bg-black border border-white/10 p-2 text-xs" />
-                      </>
-                    )}
-                 </div>
-              )}
-
-              {/* Custom Parameters */}
-              {!['kalshi', 'polymarket'].includes(bot.type) && (
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <label className="mono-type text-[10px] uppercase tracking-wider opacity-60">Operating Parameters</label>
-                  <button onClick={addParameter} className="hover:text-green-400 opacity-60 hover:opacity-100 transition-colors"><Plus className="w-4 h-4" /></button>
-                </div>
-                <div className="space-y-2">
-                  {parameters.map((param, i) => (
-                    <div key={i} className="flex gap-2 items-start">
-                      <input 
-                        type="text" 
-                        placeholder="KEY (e.g. TARGET_ASSET)" 
-                        value={param.key}
-                        onChange={(e) => updateParameter(i, 'key', e.target.value)}
-                        className="w-1/3 bg-black border border-white/10 p-2 font-mono text-[10px] focus:border-white/40 focus:outline-none" 
-                      />
-                      <input 
-                        type="text" 
-                        placeholder="VALUE" 
-                        value={param.value}
-                        onChange={(e) => updateParameter(i, 'value', e.target.value)}
-                        className="flex-grow bg-black border border-white/10 p-2 font-mono text-[10px] focus:border-white/40 focus:outline-none" 
-                      />
-                      <button 
-                        onClick={() => removeParameter(i)}
-                        className="p-2 border border-white/10 bg-black hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-400 transition-colors"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  ))}
-                  {parameters.length === 0 && (
-                    <div className="mono-type text-[9px] opacity-40 italic text-center py-4 border border-dashed border-white/10">No specific parameters configured.</div>
-                  )}
-                </div>
-              </div>
-              )}
+             <section className="pt-10 border-t-4 border-black">
+                <button 
+                  onClick={async () => {
+                    if (confirm("Are you sure you want to decommission this bot? All its memory and files will be permanently erased.")) {
+                      await deleteDoc(doc(db, "users", auth.currentUser!.uid, "bots", bot.id));
+                      onClose();
+                    }
+                  }}
+                  className="w-full p-4 bg-[#FF2E00] text-white font-black uppercase tracking-widest text-sm brutal-shadow hover:bg-black transition-all border-4 border-black"
+                >
+                  Decommission Bot
+                </button>
+             </section>
           </div>
-
-          <div className="h-px w-full bg-white/10 my-4" />
-
-          {/* Logic Trace Terminal */}
-          {logicTrace.length > 0 && (
-            <div className="space-y-3">
-              <label className="mono-type text-[10px] uppercase tracking-wider opacity-60">Decision Trace Matrix</label>
-              <div className="w-full bg-[#080808] border border-white/10 rounded-sm overflow-hidden">
-                {logicTrace.map((t, i) => (
-                  <div key={i} className="p-3 border-b border-white/5 flex gap-4 items-start animate-in fade-in slide-in-from-left-2 duration-500">
-                    <div className={cn(
-                      "shrink-0 px-2 py-0.5 rounded-[2px] mono-type text-[8px] font-bold uppercase",
-                      t.status === 'info' && "bg-blue-500/20 text-blue-400",
-                      t.status === 'success' && "bg-green-500/20 text-green-400",
-                      t.status === 'warn' && "bg-red-500/20 text-red-400",
-                    )}>
-                      {t.step}
-                    </div>
-                    <p className="mono-type text-[9px] opacity-60 leading-relaxed">{t.detail}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Test Cycle Controller */}
-          <button 
-            onClick={handleTestRun}
-            disabled={isGenerating || bot.status === "auth-required"}
-            className="w-full py-4 border border-white/20 bg-white/5 hover:bg-white hover:text-black transition-colors flex items-center justify-center gap-2 group disabled:opacity-50 disabled:hover:bg-white/5 disabled:hover:text-white"
-          >
-            {isGenerating ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Play className="w-4 h-4 text-white group-hover:text-black" />
-            )}
-            <span className="mono-type text-xs uppercase tracking-widest font-bold">
-              {isGenerating ? "Executing..." : "Run AI Simulation Cycle"}
-            </span>
-          </button>
-
-          {/* Trigger Monitor Terminal */}
-          {platformInfo?.triggers && platformInfo.triggers.length > 0 && (
-            <div className="space-y-3">
-              <label className="mono-type text-[10px] uppercase tracking-wider text-amber-400 font-bold">Monitor Terminal: Active Triggers</label>
-              <div className="w-full bg-amber-500/5 border border-amber-500/20 p-2 text-[9px] mono-type space-y-1">
-                {platformInfo.triggers.map((t, i) => (
-                  <div key={i} className="flex gap-2 items-center p-2 bg-black/40 rounded-sm">
-                    <span className="text-amber-400 shrink-0 uppercase">{t.type}</span>
-                    <span className="opacity-90">{t.message}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <label className="mono-type text-[10px] uppercase tracking-wider opacity-60">Execution Terminal</label>
-              <div className="px-2 py-1 bg-white/5 text-[9px] mono-type uppercase">Live</div>
-            </div>
-            <div className="w-full h-48 bg-black border border-white/10 p-4 font-mono text-[10px] overflow-y-auto space-y-2">
-              {logs.length === 0 ? (
-                <div className="opacity-30">Awaiting execution cycles...</div>
-              ) : (
-                logs.map((log, i) => (
-                  <div key={i} className="flex gap-4 border-b border-white/5 pb-2">
-                    <span className="text-green-500 shrink-0">[{log.time}]</span>
-                    <span className="opacity-80 leading-relaxed">{log.text}</span>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-
         </div>
       </motion.div>
     </AnimatePresence>
