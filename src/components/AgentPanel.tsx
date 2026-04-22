@@ -135,7 +135,13 @@ const OperationalSettings = ({ config, setConfig }: { config: any, setConfig: an
       setConfidenceFloor(bot.config?.confidenceFloor || 0.85);
       
       const configParams = bot.config?.parameters || {};
-      const paramsArray = Object.keys(configParams).map(k => ({ key: k, value: configParams[k] }));
+      const paramsArray = Object.keys(configParams).map(k => {
+          let val = configParams[k];
+          if (typeof val === 'string' && val.split(':').length === 3) {
+             val = "********";
+          }
+          return { key: k, value: val };
+      });
       setParameters(paramsArray.length > 0 ? paramsArray : [{key: "", value: ""}]);
 
       // Check platform connection
@@ -201,11 +207,12 @@ const OperationalSettings = ({ config, setConfig }: { config: any, setConfig: an
         confidenceFloor
       };
 
-      const botRef = doc(db, "users", bot.userId, "bots", bot.id);
-      await setDoc(botRef, { 
-        config: newConfig,
-        updatedAt: serverTimestamp() 
-      }, { merge: true });
+      const res = await fetch(`/api/config/${bot.type}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ uid: bot.userId, config: newConfig })
+      });
+      if (!res.ok) throw new Error("Failed to securely save config");
     } catch (e) {
       handleFirestoreError(e, 'update', `users/${bot.userId}/bots/${bot.id}`);
     } finally {
