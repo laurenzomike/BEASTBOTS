@@ -34,6 +34,9 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
   const [platformInfo, setPlatformInfo] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<"overview" | "config" | "knowledge" | "playground">("overview");
   const [systemInstructions, setSystemInstructions] = useState(bot?.config?.systemInstructions || "");
+  const [chatHistory, setChatHistory] = useState<{role: 'user' | 'bot', text: string}[]>([]);
+  const [currentMessage, setCurrentMessage] = useState("");
+  const [isTyping, setIsTyping] = useState(false);
 
   useEffect(() => {
     if (!bot) return;
@@ -109,6 +112,39 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
 
   const addLog = (text: string) => {
     setLogs(prev => [{ time: new Date().toLocaleTimeString(), text }, ...prev].slice(0, 50));
+  };
+
+  const handlePlaygroundMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentMessage.trim() || !ai) return;
+
+    const userText = currentMessage;
+    setChatHistory(prev => [...prev, { role: 'user', text: userText }]);
+    setCurrentMessage("");
+    setIsTyping(true);
+
+    try {
+      const prompt = `System Instructions: ${systemInstructions || "You are a helpful assistant."}
+Role: ${bot.type} Bot
+Strategy: ${strategy}
+Win Condition: ${bot.config?.winCondition || "None"}
+Workflows Context: ${workflows.map(w => w.action).join(", ")}
+
+User Input: ${userText}
+
+Respond directly as the bot.`;
+
+      const result = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: prompt
+      });
+
+      setChatHistory(prev => [...prev, { role: 'bot', text: result.text || "No response generated." }]);
+    } catch (e) {
+      setChatHistory(prev => [...prev, { role: 'bot', text: "[SYSTEM ERROR] Communication failed. " + (e instanceof Error ? e.message : "") }]);
+    } finally {
+      setIsTyping(false);
+    }
   };
 
   const handleTestRun = async () => {
@@ -696,22 +732,47 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
           )}
 
           {activeTab === "playground" && (
-            <div className="space-y-12">
-              <section className="bg-white p-8 border-[4px] border-black brutal-shadow h-[400px] flex flex-col">
+            <div className="space-y-12 h-full">
+              <section className="bg-white p-8 border-[4px] border-black brutal-shadow h-[500px] flex flex-col">
                  <h3 className="font-sans text-2xl font-black uppercase border-b-4 border-black pb-2 mb-4">Playground Interface</h3>
-                 <div className="flex-grow bg-black text-[#D4FF00] p-4 font-mono text-xs overflow-y-auto border-4 border-black mb-4">
-                   <div className="opacity-50 italic text-center mt-10">Simulation initialized with current bot configuration...</div>
-                   <div className="mt-4 opacity-50 italic text-center">Awaiting user input...</div>
+                 <div className="flex-grow bg-black p-4 font-mono text-xs overflow-y-auto border-4 border-black mb-4 space-y-4">
+                   {chatHistory.length === 0 ? (
+                     <div className="opacity-50 italic text-[#D4FF00] text-center mt-10">Simulation initialized with current bot configuration. Awaiting user input...</div>
+                   ) : (
+                     chatHistory.map((msg, i) => (
+                       <div key={i} className={cn(
+                         "p-3 max-w-[80%] border-2 brutal-shadow",
+                         msg.role === 'user'
+                          ? "bg-white text-black border-black ml-auto rounded-tl-xl rounded-bl-xl rounded-br-xl"
+                          : "bg-[var(--brand)] text-black border-black mr-auto rounded-tr-xl rounded-br-xl rounded-bl-xl"
+                       )}>
+                         <span className="block text-[8px] font-black uppercase mb-1 opacity-50">{msg.role === 'user' ? 'You' : bot.name}</span>
+                         <div className="whitespace-pre-wrap">{msg.text}</div>
+                       </div>
+                     ))
+                   )}
+                   {isTyping && (
+                      <div className="p-3 max-w-[80%] bg-[var(--brand)] text-black border-2 border-black mr-auto rounded-tr-xl rounded-br-xl rounded-bl-xl brutal-shadow">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      </div>
+                   )}
                  </div>
-                 <div className="flex gap-2">
+                 <form onSubmit={handlePlaygroundMessage} className="flex gap-2">
                    <input
-                     className="flex-grow bg-white border-[4px] border-black p-3 font-mono font-bold text-xs outline-none"
+                     value={currentMessage}
+                     onChange={(e) => setCurrentMessage(e.target.value)}
+                     className="flex-grow bg-white border-[4px] border-black p-3 font-mono font-bold text-xs outline-none focus:border-[var(--brand)]"
                      placeholder="Send a test message..."
+                     disabled={isTyping}
                    />
-                   <button className="bg-black text-white px-6 font-black uppercase hover:bg-[var(--brand)] hover:text-black border-4 border-black transition-colors">
+                   <button
+                     type="submit"
+                     disabled={isTyping || !currentMessage.trim()}
+                     className="bg-black text-white px-6 font-black uppercase hover:bg-[var(--brand)] hover:text-black border-4 border-black transition-colors disabled:opacity-50"
+                   >
                      Send
                    </button>
-                 </div>
+                 </form>
               </section>
             </div>
           )}
