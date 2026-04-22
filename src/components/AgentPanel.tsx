@@ -344,7 +344,7 @@ Respond directly as the bot.`;
           )}
           {activeTab === "knowledge" && (
             <div className="space-y-12">
-             <section className="space-y-6">
+             <section className="space-y-6 text-black bg-white p-8 border-[4px] border-black brutal-shadow">
                 <div className="flex items-center justify-between border-b-[4px] border-black pb-2">
                   <h3 className="font-sans text-3xl font-black uppercase flex items-center gap-3"><Brain className="w-8 h-8" />Bot Memory</h3>
                   <button 
@@ -367,13 +367,13 @@ Respond directly as the bot.`;
                      <label className="mono-type text-[10px] uppercase font-black">Things this bot has learned</label>
                      <span className="bg-black text-white px-2 py-0.5 text-[8px] mono-type font-black">{memories.length} ENTRIES</span>
                   </div>
-                  <div className="bg-white border-[4px] border-black p-4 min-h-[100px] max-h-[200px] overflow-y-auto space-y-2 brutal-shadow text-xs">
+                  <div className="bg-black text-[#D4FF00] border-[4px] border-black p-4 min-h-[100px] max-h-[200px] overflow-y-auto space-y-2 brutal-shadow text-xs">
                     {memories.length === 0 ? (
-                      <div className="text-[10px] font-mono opacity-50 italic">Memory empty. Waiting for cycles...</div>
+                      <div className="text-[10px] font-mono opacity-50 italic text-[#D4FF00]">Memory empty. Waiting for cycles...</div>
                     ) : (
                       memories.map((m, i) => (
-                        <div key={i} className="flex gap-3 text-[10px] font-bold border-l-2 border-black pl-3 py-1">
-                           <span className="opacity-30 self-start">{i + 1}</span>
+                        <div key={i} className="flex gap-3 text-[10px] font-bold border-l-2 border-white/20 pl-3 py-1">
+                           <span className="opacity-30 self-start text-[#D4FF00]">{i + 1}</span>
                            <p>{m}</p>
                         </div>
                       ))
