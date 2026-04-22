@@ -1,8 +1,5 @@
-import { GoogleGenAI } from "@google/genai";
 import { PLATFORM_WORKFLOWS } from "../constants";
-
-const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
+import { auth } from "../lib/firebase";
 
 export async function suggestWorkflows(botType: string, userGoal: string) {
   const platformData = PLATFORM_WORKFLOWS[botType];
@@ -22,18 +19,18 @@ export async function suggestWorkflows(botType: string, userGoal: string) {
   Ensure trigger and action names match the Allowed lists exactly.`;
 
   try {
-    if (!ai) throw new Error("AI engine not configured (missing API key)");
-    const result = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: prompt,
-      config: { 
-        temperature: 0.7,
-        responseMimeType: "application/json" 
-      }
+    const token = await auth.currentUser?.getIdToken();
+    const res = await fetch("/api/ai/generate", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+      body: JSON.stringify({ prompt, jsonResponse: true })
     });
-
-    const parsed = JSON.parse(result.text || "[]");
-    return parsed;
+    if (!res.ok) throw new Error(`Backend returned ${res.status}`);
+    const data = await res.json();
+    return JSON.parse(data.text || "[]");
   } catch (e) {
     console.error("Suggestion error:", e);
     return [];

@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from "motion/react";
 import { doc, setDoc, serverTimestamp, collection, addDoc, query, where, onSnapshot, limit, orderBy, getDocs, deleteDoc } from "firebase/firestore";
 import { db, handleFirestoreError, auth } from "../lib/firebase";
 import { cn } from "../lib/utils";
-import { GoogleGenAI } from "@google/genai";
 import { BOT_TYPES, PLATFORM_WORKFLOWS } from "../constants";
 import { Bot } from "../types";
 import { handleBotErrorTransition } from "../lib/errorUtils";
@@ -15,8 +14,6 @@ interface AgentPanelProps {
   onClose: () => void;
 }
 
-const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
 export function AgentPanel({ bot, onClose }: AgentPanelProps) {
   const [workflows, setWorkflows] = useState<any[]>(bot?.config?.workflows || []);
@@ -116,7 +113,7 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
 
   const handlePlaygroundMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentMessage.trim() || !ai) return;
+    if (!currentMessage.trim()) return;
 
     const userText = currentMessage;
     setChatHistory(prev => [...prev, { role: 'user', text: userText }]);
@@ -134,12 +131,20 @@ User Input: ${userText}
 
 Respond directly as the bot.`;
 
-      const result = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: prompt
+      const token = await auth.currentUser?.getIdToken();
+      const res = await fetch("/api/ai/generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ prompt })
       });
 
-      setChatHistory(prev => [...prev, { role: 'bot', text: result.text || "No response generated." }]);
+      if (!res.ok) throw new Error(`Backend returned ${res.status}`);
+      const data = await res.json();
+
+      setChatHistory(prev => [...prev, { role: 'bot', text: data.text || "No response generated." }]);
     } catch (e) {
       setChatHistory(prev => [...prev, { role: 'bot', text: "[SYSTEM ERROR] Communication failed. " + (e instanceof Error ? e.message : "") }]);
     } finally {
@@ -151,13 +156,22 @@ Respond directly as the bot.`;
     setIsGenerating(true);
     addLog(`Initiating AI Simulation Cycle for ${bot.name}...`);
     try {
-      if (!ai) throw new Error("AI engine not configured (missing API key)");
       const prompt = `Simulate an execution step for ${bot.type}. Current strategy: ${strategy}. Global goals: ${bot.config.userGoal || "Dominance"}. Provide a short report.`;
-      const result = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: prompt
+
+      const token = await auth.currentUser?.getIdToken();
+      const res = await fetch("/api/ai/generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ prompt })
       });
-      addLog(`[AI_REPORT] ${result.text}`);
+
+      if (!res.ok) throw new Error(`Backend returned ${res.status}`);
+      const data = await res.json();
+
+      addLog(`[AI_REPORT] ${data.text}`);
     } catch (e) {
       addLog(`[ERROR] ${e instanceof Error ? e.message : 'Unknown failure'}`);
     } finally {

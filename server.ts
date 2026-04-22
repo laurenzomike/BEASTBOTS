@@ -6,6 +6,7 @@ import dotenv from "dotenv";
 import admin from "firebase-admin";
 import firebaseConfig from "./firebase-applet-config.json";
 import { google } from "googleapis";
+import { GoogleGenAI } from "@google/genai";
 
 dotenv.config();
 
@@ -18,6 +19,9 @@ if (!admin.apps.length) {
 }
 const db = admin.firestore();
 
+const apiKey = process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
+
 // Initialize express app
 const app = express();
 const PORT = 3000;
@@ -28,6 +32,35 @@ app.use(express.json());
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok" });
 });
+app.post("/api/ai/generate", async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const idToken = authHeader.split('Bearer ')[1];
+    await admin.auth().verifyIdToken(idToken);
+
+    if (!ai) {
+      return res.status(503).json({ error: "AI Engine not configured on server." });
+    }
+
+    const { prompt, model = "gemini-3-flash-preview", jsonResponse = false, systemInstruction, tools } = req.body;
+
+    const config: any = jsonResponse ? { temperature: 0.7, responseMimeType: "application/json" } : { temperature: 0.7 };
+
+    if (systemInstruction) config.systemInstruction = systemInstruction;
+    if (tools) config.tools = tools;
+
+    const result = await ai.models.generateContent({ model, contents: prompt, config });
+    res.json({ text: result.text });
+  } catch (error) {
+    console.error("AI Generation Error:", error);
+    res.status(500).json({ error: "Failed to generate content." });
+  }
+});
+
 
 // OAuth Initialization Endpoint
 app.get("/api/oauth/:provider/url", (req, res) => {

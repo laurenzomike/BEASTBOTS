@@ -12,14 +12,11 @@ import { AgentPanel } from "./components/AgentPanel";
 import { AgentOnboarding } from "./components/AgentOnboarding";
 import { BotCard } from "./components/BotCard";
 import { AuditView } from "./components/AuditView";
-import { GoogleGenAI } from "@google/genai";
 import { handleBotErrorTransition } from "./lib/errorUtils";
 import { Bot, Activity } from "./types";
 import { BOT_TYPES } from "./constants";
 import { motion, AnimatePresence } from "motion/react";
 
-const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
 interface Toast {
   id: string;
@@ -80,13 +77,18 @@ export default function App() {
       
       Focus on what has been done and if it helps the main goal.`;
 
-      if (!ai) throw new Error("Missing API Key");
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: prompt,
-        config: { temperature: 0.5 }
+      const token = await auth.currentUser?.getIdToken();
+      const res = await fetch("/api/ai/generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ prompt })
       });
-      setBriefing(response.text || "Everything is running as expected.");
+      if (!res.ok) throw new Error("API Error");
+      const data = await res.json();
+      setBriefing(data.text || "Everything is running as expected.");
       addToast("Bot summary updated.", "success");
     } catch (e) {
       console.error("Failed to generate briefing", e);
@@ -190,21 +192,23 @@ Output format:
 
 Keep it to 1-2 authoritative sentences.`;
 
-      if (!ai) throw new Error("Missing API Key");
-      const response = await ai.models.generateContent({
-        model: "gemini-3.1-pro-preview",
-        contents: prompt,
-        config: {
-          systemInstruction: `You are the ${bot.type} elite Bot. Decisive and technical. 
-          
-          USER COMMAND DIRECTIVES:
-          ${botConfig.systemDirective || "Maintain peak efficiency and data-driven objectivity."}`,
-          temperature: 0.8,
-          tools: [{ googleSearch: {} }]
-        }
-      });
+      const promptWithSystem = `System Instruction: You are the ${bot.type} elite Bot. Decisive and technical.
+USER COMMAND DIRECTIVES: ${botConfig.systemDirective || "Maintain peak efficiency and data-driven objectivity."}
 
-      const output = response.text || `[ANALYSIS] Maintaining standby status for ${bot.type}.`;
+${prompt}`;
+
+      const token = await auth.currentUser?.getIdToken();
+      const res = await fetch("/api/ai/generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ prompt: promptWithSystem, model: "gemini-3.1-pro-preview" })
+      });
+      if (!res.ok) throw new Error("API Error");
+      const data = await res.json();
+      const output = data.text || `[ANALYSIS] Maintaining standby status for ${bot.type}.`;
 
       // Memory Extraction
       const memoryMatch = output.match(/\[MEMORY:\s*(.*?)\]/);
@@ -473,7 +477,7 @@ Keep it to 1-2 authoritative sentences.`;
                 className="min-h-screen"
               >
                 {(() => {
-                  const bot = bots.find(b => b.id === selectedBot.id);
+                  const bot = selectedBot;
                   if (!bot) return null;
                   if (!bot.config?.isInitialized) {
                     return (
