@@ -6,6 +6,8 @@ import { db, handleFirestoreError, auth } from "../lib/firebase";
 import { cn } from "../lib/utils";
 import { GoogleGenAI } from "@google/genai";
 import { BOT_TYPES } from "../App";
+import { TradingSettings } from "./settings/TradingSettings";
+import { ContentSettings } from "./settings/ContentSettings";
 
 type Bot = {
   id: string;
@@ -51,70 +53,6 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
   const [confidenceFloor, setConfidenceFloor] = useState<number>(0.85);
 
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
-
-  const TradingSettings = ({ config, setConfig }: { config: any, setConfig: any }) => (
-  <div className="space-y-4 bg-white/5 p-4 border border-blue-500/20 rounded-sm">
-    <label className="mono-type text-[10px] uppercase text-blue-400 font-bold">Trading Parameters</label>
-    <div className="grid grid-cols-2 gap-4">
-      <div>
-        <label className="text-[9px] uppercase opacity-50 block mb-1">Max Position Size</label>
-        <input type="number" value={config.maxPosition || 0} onChange={(e) => setConfig({...config, maxPosition: Number(e.target.value)})} className="w-full bg-black border border-white/10 p-2 text-xs" />
-      </div>
-      <div>
-        <label className="text-[9px] uppercase opacity-50 block mb-1">Profit Target %</label>
-        <input type="number" value={config.profitTarget || 0} onChange={(e) => setConfig({...config, profitTarget: Number(e.target.value)})} className="w-full bg-black border border-white/10 p-2 text-xs" />
-      </div>
-      <div>
-        <label className="text-[9px] uppercase opacity-50 block mb-1">Stop Loss %</label>
-        <input type="number" value={config.stopLoss || 0} onChange={(e) => setConfig({...config, stopLoss: Number(e.target.value)})} className="w-full bg-black border border-white/10 p-2 text-xs" />
-      </div>
-      <div>
-        <label className="text-[9px] uppercase opacity-50 block mb-1">Risk Tolerance %</label>
-        <input type="number" value={config.riskTolerance || 0} onChange={(e) => setConfig({...config, riskTolerance: Number(e.target.value)})} className="w-full bg-black border border-white/10 p-2 text-xs" />
-      </div>
-      <div className="col-span-2">
-        <label className="text-[9px] uppercase opacity-50 block mb-1">Strategy</label>
-        <select value={config.strategy || "scalping"} onChange={(e) => setConfig({...config, strategy: e.target.value})} className="w-full bg-black border border-white/10 p-2 text-xs text-white">
-          <option value="scalping">Scalping</option>
-          <option value="swing">Swing</option>
-          <option value="arbitrage">Arbitrage</option>
-        </select>
-      </div>
-    </div>
-    <div className="mt-4 border-t border-white/10 pt-4">
-      <label className="mono-type text-[10px] uppercase text-blue-400 font-bold block mb-4">Operational Hours</label>
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="text-[9px] uppercase opacity-50 block mb-1">Start Hour (0-23)</label>
-          <input type="number" min="0" max="23" value={config.startHour || 0} onChange={(e) => setConfig({...config, startHour: Number(e.target.value)})} className="w-full bg-black border border-white/10 p-2 text-xs" />
-        </div>
-        <div>
-          <label className="text-[9px] uppercase opacity-50 block mb-1">End Hour (0-23)</label>
-          <input type="number" min="0" max="23" value={config.endHour || 23} onChange={(e) => setConfig({...config, endHour: Number(e.target.value)})} className="w-full bg-black border border-white/10 p-2 text-xs" />
-        </div>
-        <div className="col-span-2">
-          <label className="text-[9px] uppercase opacity-50 block mb-1">Timezone</label>
-          <input type="text" value={config.timezone || "UTC"} onChange={(e) => setConfig({...config, timezone: e.target.value})} className="w-full bg-black border border-white/10 p-2 text-xs" />
-        </div>
-      </div>
-    </div>
-  </div>
-);
-
-const ContentSettings = ({ config, setConfig }: { config: any, setConfig: any }) => (
-  <div className="space-y-4 bg-white/5 p-4 border border-purple-500/20 rounded-sm">
-    <label className="mono-type text-[10px] uppercase text-purple-400 font-bold">Content Tone Settings</label>
-    <div>
-        <label className="text-[9px] uppercase opacity-50 block mb-1">Target Tone</label>
-        <select value={config.tone || "professional"} onChange={(e) => setConfig({...config, tone: e.target.value})} className="w-full bg-black border border-white/10 p-2 text-xs text-white">
-          <option value="professional">Professional</option>
-          <option value="casual">Casual</option>
-          <option value="aggressive">Aggressive</option>
-          <option value="witty">Witty</option>
-        </select>
-    </div>
-  </div>
-);
 
   const [localConfig, setLocalConfig] = useState<Record<string, any>>(bot?.config || {});
   

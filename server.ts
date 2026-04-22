@@ -6,6 +6,9 @@ import dotenv from "dotenv";
 import admin from "firebase-admin";
 import firebaseConfig from "./firebase-applet-config.json";
 import { google } from "googleapis";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
+import Alpaca from "@alpacahq/alpaca-trade-api";
 
 dotenv.config();
 
@@ -21,6 +24,20 @@ const db = admin.firestore();
 // Initialize express app
 const app = express();
 const PORT = 3000;
+
+// Apply security headers
+app.use(helmet({
+  contentSecurityPolicy: false // Disabled for Vite development/local usage
+}));
+
+// Apply rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per `window` (here, per 15 minutes)
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+});
+app.use(limiter);
 
 app.use(express.json());
 
@@ -106,8 +123,12 @@ app.get(["/api/oauth/:provider/callback", "/api/oauth/:provider/callback/"], asy
     return res.status(400).json({ error });
   }
 
+  if (!state || typeof state !== "string") {
+    return res.status(400).json({ error: "Missing or invalid state parameter." });
+  }
+
   try {
-    const stateData = JSON.parse(Buffer.from(String(state), "base64").toString());
+    const stateData = JSON.parse(Buffer.from(state, "base64").toString());
     const uid = stateData.uid;
     const redirectUri = `${process.env.APP_URL}/api/oauth/${provider}/callback`;
 
@@ -206,18 +227,31 @@ app.get("/api/platform/:botType/info", async (req, res) => {
       const apiKey = config.apiKey;
       const apiSecret = config.apiSecret;
       if (!apiKey || !apiSecret) return res.json({ connected: false });
-      return res.json({
-        connected: true,
-        accountName: config.accountName || "ALPACA_PRO_NODE",
-        status: "Market Listening - Active",
-        stats: {
-          buying_power: "$24,500.00",
-          equity: "$12,402.15",
-          drawdown_pct: "1.8% (Conservative)",
-          daily_roi: "+1.2%",
-          sharpe_ratio: "2.4"
-        }
-      });
+
+      try {
+        const alpaca = new Alpaca({
+          keyId: apiKey,
+          secretKey: apiSecret,
+          paper: true,
+        });
+        const account = await alpaca.getAccount();
+
+        return res.json({
+          connected: true,
+          accountName: config.accountName || "ALPACA_PRO_NODE",
+          status: account.status,
+          stats: {
+            buying_power: `$${Number(account.buying_power).toFixed(2)}`,
+            equity: `$${Number(account.equity).toFixed(2)}`,
+            drawdown_pct: "1.8% (Conservative)", // Mock logic for missing field
+            daily_roi: "+1.2%", // Mock logic for missing field
+            sharpe_ratio: "2.4" // Mock logic for missing field
+          }
+        });
+      } catch (alpacaError: any) {
+        console.error("Alpaca connection error:", alpacaError);
+        return res.json({ connected: false, error: alpacaError.message });
+      }
     }
     
     if (botType === "coinbase") {
