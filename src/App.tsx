@@ -35,6 +35,28 @@ type Bot = {
   config: Record<string, any>;
 };
 
+const Typewriter = ({ text, delay = 20 }: { text: string, delay?: number }) => {
+  const [currentText, setCurrentText] = useState("");
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  useEffect(() => {
+    setCurrentText("");
+    setCurrentIndex(0);
+  }, [text]);
+
+  useEffect(() => {
+    if (currentIndex < text.length) {
+      const timeout = setTimeout(() => {
+        setCurrentText(prev => prev + text[currentIndex]);
+        setCurrentIndex(prev => prev + 1);
+      }, delay);
+      return () => clearTimeout(timeout);
+    }
+  }, [currentIndex, delay, text]);
+
+  return <span>{currentText}<span className="animate-pulse">|</span></span>;
+};
+
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -470,28 +492,6 @@ DO NOT ASK QUESTIONS. EXECUTE AS AN AUTONOMOUS PRO.`;
       </div>
     );
   }
-
-  const Typewriter = ({ text, delay = 20 }: { text: string, delay?: number }) => {
-    const [currentText, setCurrentText] = useState("");
-    const [currentIndex, setCurrentIndex] = useState(0);
-
-    useEffect(() => {
-      setCurrentText("");
-      setCurrentIndex(0);
-    }, [text]);
-
-    useEffect(() => {
-      if (currentIndex < text.length) {
-        const timeout = setTimeout(() => {
-          setCurrentText(prev => prev + text[currentIndex]);
-          setCurrentIndex(prev => prev + 1);
-        }, delay);
-        return () => clearTimeout(timeout);
-      }
-    }, [currentIndex, delay, text]);
-
-    return <span>{currentText}<span className="animate-pulse">|</span></span>;
-  };
 
   return (
     <div className="flex flex-col min-h-screen w-full font-sans">
