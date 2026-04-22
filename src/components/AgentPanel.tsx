@@ -22,6 +22,28 @@ interface AgentPanelProps {
   onClose: () => void;
 }
 
+interface TradingConfig {
+  maxPosition?: number;
+  profitTarget?: number;
+  stopLoss?: number;
+  strategy?: string;
+}
+
+interface ContentConfig {
+  tone?: string;
+}
+
+interface OperationalConfig {
+  startHour?: number;
+  endHour?: number;
+  timezone?: string;
+}
+
+interface ConfigProps<T> {
+  config: T;
+  setConfig: (config: T) => void;
+}
+
 export function AgentPanel({ bot, onClose }: AgentPanelProps) {
   const [instruction, setInstruction] = useState("");
   const [parameters, setParameters] = useState<{key: string, value: string}[]>([]);
@@ -52,7 +74,7 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
 
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 
-  const TradingSettings = ({ config, setConfig }: { config: any, setConfig: any }) => (
+  const TradingSettings = ({ config, setConfig }: ConfigProps<TradingConfig>) => (
   <div className="space-y-4 bg-white/5 p-4 border border-blue-500/20 rounded-sm">
     <label className="mono-type text-[10px] uppercase text-blue-400 font-bold">Trading Parameters</label>
     <div className="grid grid-cols-2 gap-4">
@@ -80,7 +102,7 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
   </div>
 );
 
-const ContentSettings = ({ config, setConfig }: { config: any, setConfig: any }) => (
+const ContentSettings = ({ config, setConfig }: ConfigProps<ContentConfig>) => (
   <div className="space-y-4 bg-white/5 p-4 border border-purple-500/20 rounded-sm">
     <label className="mono-type text-[10px] uppercase text-purple-400 font-bold">Content Tone Settings</label>
     <div>
@@ -95,7 +117,7 @@ const ContentSettings = ({ config, setConfig }: { config: any, setConfig: any })
   </div>
 );
 
-const OperationalSettings = ({ config, setConfig }: { config: any, setConfig: any }) => (
+const OperationalSettings = ({ config, setConfig }: ConfigProps<OperationalConfig>) => (
   <div className="space-y-4 bg-white/5 p-4 border border-zinc-500/20 rounded-sm">
     <label className="mono-type text-[10px] uppercase text-zinc-400 font-bold">Operational Hours</label>
     <div className="grid grid-cols-2 gap-4">
