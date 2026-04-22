@@ -46,14 +46,21 @@ app.post("/api/ai/generate", async (req, res) => {
       return res.status(503).json({ error: "AI Engine not configured on server." });
     }
 
-    const { prompt, model = "gemini-3-flash-preview", jsonResponse = false, systemInstruction, tools } = req.body;
+    const { prompt, history = [], model = "gemini-3-flash-preview", jsonResponse = false, systemInstruction, tools } = req.body;
 
     const config: any = jsonResponse ? { temperature: 0.7, responseMimeType: "application/json" } : { temperature: 0.7 };
 
     if (systemInstruction) config.systemInstruction = systemInstruction;
     if (tools) config.tools = tools;
 
-    const result = await ai.models.generateContent({ model, contents: prompt, config });
+    let result;
+    if (history.length > 0) {
+      const chat = ai.chats.create({ model, config, history });
+      result = await chat.sendMessage(prompt);
+    } else {
+      result = await ai.models.generateContent({ model, contents: prompt, config });
+    }
+
     res.json({ text: result.text });
   } catch (error) {
     console.error("AI Generation Error:", error);

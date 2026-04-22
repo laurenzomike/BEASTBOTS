@@ -31,6 +31,7 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
   const [platformInfo, setPlatformInfo] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<"overview" | "config" | "knowledge" | "playground">("overview");
   const [systemInstructions, setSystemInstructions] = useState(bot?.config?.systemInstructions || "");
+  const [activeTools, setActiveTools] = useState<string[]>(bot?.config?.tools || ["Web Search"]);
   const [chatHistory, setChatHistory] = useState<{role: 'user' | 'bot', text: string}[]>([]);
   const [currentMessage, setCurrentMessage] = useState("");
   const [isTyping, setIsTyping] = useState(false);
@@ -121,15 +122,17 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
     setIsTyping(true);
 
     try {
-      const prompt = `System Instructions: ${systemInstructions || "You are a helpful assistant."}
+      const systemInstruction = `System Instructions: ${systemInstructions || "You are a helpful assistant."}
 Role: ${bot.type} Bot
 Strategy: ${strategy}
 Win Condition: ${bot.config?.winCondition || "None"}
 Workflows Context: ${workflows.map(w => w.action).join(", ")}
-
-User Input: ${userText}
-
 Respond directly as the bot.`;
+
+      const history = chatHistory.map(msg => ({
+        role: msg.role === 'user' ? 'user' : 'model',
+        parts: [{ text: msg.text }]
+      }));
 
       const token = await auth.currentUser?.getIdToken();
       const res = await fetch("/api/ai/generate", {
@@ -138,7 +141,18 @@ Respond directly as the bot.`;
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`
         },
-        body: JSON.stringify({ prompt })
+        body: JSON.stringify({
+          prompt: userText,
+          systemInstruction,
+          history,
+          tools: [
+            ...(activeTools.includes("Web Search") ? [{ googleSearch: {} }] : []),
+            ...(activeTools.includes("Code Execution") ? [{ codeExecution: {} }] : [])
+          ].length > 0 ? [
+            ...(activeTools.includes("Web Search") ? [{ googleSearch: {} }] : []),
+            ...(activeTools.includes("Code Execution") ? [{ codeExecution: {} }] : [])
+          ] : undefined
+        })
       });
 
       if (!res.ok) throw new Error(`Backend returned ${res.status}`);
@@ -607,7 +621,16 @@ Respond directly as the bot.`;
                <div className="flex gap-4 mt-4">
                  {["Web Search", "Code Execution", "API Access"].map(tool => (
                     <label key={tool} className="flex items-center gap-2 mono-type text-[10px] font-black uppercase cursor-pointer">
-                      <input type="checkbox" defaultChecked={true} className="w-4 h-4 accent-black" /> {tool}
+                      <input
+                        type="checkbox"
+                        checked={activeTools.includes(tool)}
+                        onChange={(e) => {
+                          const newTools = e.target.checked ? [...activeTools, tool] : activeTools.filter(t => t !== tool);
+                          setActiveTools(newTools);
+                          setDoc(doc(db, "users", auth.currentUser!.uid, "bots", bot.id), { config: { ...bot.config, tools: newTools }, updatedAt: serverTimestamp() }, { merge: true });
+                        }}
+                        className="w-4 h-4 accent-black"
+                      /> {tool}
                     </label>
                  ))}
                </div>
