@@ -18,7 +18,8 @@ import { Bot, Activity } from "./types";
 import { BOT_TYPES } from "./constants";
 import { motion, AnimatePresence } from "motion/react";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
 interface Toast {
   id: string;
@@ -79,6 +80,7 @@ export default function App() {
       
       Focus on what has been done and if it helps the main goal.`;
 
+      if (!ai) throw new Error("Missing API Key");
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
         contents: prompt,
@@ -188,6 +190,7 @@ Output format:
 
 Keep it to 1-2 authoritative sentences.`;
 
+      if (!ai) throw new Error("Missing API Key");
       const response = await ai.models.generateContent({
         model: "gemini-3.1-pro-preview",
         contents: prompt,
@@ -460,7 +463,7 @@ Keep it to 1-2 authoritative sentences.`;
               >
                 <AuditView bots={bots} activities={globalActivities} />
               </motion.div>
-            ) : selectedBotId ? (
+            ) : selectedBot ? (
               <motion.div 
                 key="onboarding-or-panel"
                 initial={{ opacity: 0, y: 20 }}
@@ -470,7 +473,7 @@ Keep it to 1-2 authoritative sentences.`;
                 className="min-h-screen"
               >
                 {(() => {
-                  const bot = bots.find(b => b.id === selectedBotId);
+                  const bot = bots.find(b => b.id === selectedBot.id);
                   if (!bot) return null;
                   if (!bot.config?.isInitialized) {
                     return (
@@ -486,8 +489,7 @@ Keep it to 1-2 authoritative sentences.`;
                   return (
                     <AgentPanel 
                       bot={bot}
-                      onUpdateBot={() => {}}
-                      onClose={() => setSelectedBotId(null)}
+                      onClose={() => setSelectedBot(null)}
                     />
                   );
                 })()}
@@ -605,7 +607,6 @@ Keep it to 1-2 authoritative sentences.`;
         )}
       </AnimatePresence>
 
-      <AgentPanel bot={selectedBot} onClose={() => setSelectedBot(null)} />
     </div>
   );
 }

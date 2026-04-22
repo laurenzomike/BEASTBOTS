@@ -1,7 +1,8 @@
 import { GoogleGenAI } from "@google/genai";
 import { PLATFORM_WORKFLOWS } from "../constants";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
 export async function suggestWorkflows(botType: string, userGoal: string) {
   const platformData = PLATFORM_WORKFLOWS[botType];
@@ -21,6 +22,7 @@ export async function suggestWorkflows(botType: string, userGoal: string) {
   Ensure trigger and action names match the Allowed lists exactly.`;
 
   try {
+    if (!ai) throw new Error("AI engine not configured (missing API key)");
     const result = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: prompt,

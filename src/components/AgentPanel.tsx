@@ -15,7 +15,8 @@ interface AgentPanelProps {
   onClose: () => void;
 }
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
 export function AgentPanel({ bot, onClose }: AgentPanelProps) {
   const [workflows, setWorkflows] = useState<any[]>(bot?.config?.workflows || []);
@@ -31,6 +32,8 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [activities, setActivities] = useState<any[]>([]);
   const [platformInfo, setPlatformInfo] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState<"overview" | "config" | "knowledge" | "playground">("overview");
+  const [systemInstructions, setSystemInstructions] = useState(bot?.config?.systemInstructions || "");
 
   useEffect(() => {
     if (!bot) return;
@@ -89,6 +92,7 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
         ...bot.config,
         workflows,
         strategy,
+        systemInstructions,
         parameters: parameters.reduce((acc, p) => ({ ...acc, [p.key]: p.value }), {}),
       };
       await setDoc(doc(db, "users", auth.currentUser!.uid, "bots", bot.id), { 
@@ -111,6 +115,7 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
     setIsGenerating(true);
     addLog(`Initiating AI Simulation Cycle for ${bot.name}...`);
     try {
+      if (!ai) throw new Error("AI engine not configured (missing API key)");
       const prompt = `Simulate an execution step for ${bot.type}. Current strategy: ${strategy}. Global goals: ${bot.config.userGoal || "Dominance"}. Provide a short report.`;
       const result = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
@@ -224,7 +229,23 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
             ))}
           </div>
 
-          <div className="space-y-12">
+          <div className="flex border-b-[4px] border-black mb-8 overflow-x-auto">
+             {["overview", "config", "knowledge", "playground"].map((tab) => (
+               <button
+                 key={tab}
+                 onClick={() => setActiveTab(tab as any)}
+                 className={cn(
+                   "px-6 py-3 font-black uppercase text-sm border-r-[4px] border-black hover:bg-black hover:text-[#D4FF00] transition-colors whitespace-nowrap",
+                   activeTab === tab ? "bg-black text-[#D4FF00]" : "bg-white text-black"
+                 )}
+               >
+                 {tab}
+               </button>
+             ))}
+          </div>
+
+          {activeTab === "overview" && (
+            <div className="space-y-12">
              <section className="space-y-6">
                 <div className="flex items-center justify-between border-b-[4px] border-black pb-2">
                   <h3 className="font-sans text-3xl font-black uppercase flex items-center gap-3"><Trophy className="w-8 h-8" />Objective Milestones</h3>
@@ -250,6 +271,43 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
                 </div>
              </section>
 
+
+              <div className="space-y-4">
+                 <div className="flex items-center justify-between border-b-[4px] border-black pb-2">
+                    <h3 className="font-sans text-xl font-black uppercase">Recent Bot Activity</h3>
+                    <span className="bg-black text-[var(--brand)] px-2 py-0.5 text-[8px] font-black mono-type uppercase">Live Feed</span>
+                 </div>
+                 <div className="w-full h-48 bg-white border-[4px] border-black p-4 font-mono text-[10px] overflow-y-auto space-y-2">
+                     {activities.length === 0 ? <div className="text-center opacity-30 py-10 uppercase">Waiting for activity...</div> : activities.map((log) => (
+                       <div key={log.id} className="flex gap-4 border-l-2 border-black/10 pl-2">
+                          <span className="opacity-30 italic">[{log.timestamp?.toDate().toLocaleTimeString()}]</span>
+                          <p className={cn(
+                            "font-bold",
+                            log.type === 'error' ? "text-red-500" : (log.type === 'action' ? "text-black" : "text-blue-600")
+                          )}>
+                            {log.text}
+                          </p>
+                       </div>
+                     ))}
+                 </div>
+              </div>
+              <section className="pt-10 border-t-4 border-black">
+                 <button
+                   onClick={async () => {
+                     if (confirm("Are you sure you want to decommission this bot? All its memory and files will be permanently erased.")) {
+                       await deleteDoc(doc(db, "users", auth.currentUser!.uid, "bots", bot.id));
+                       onClose();
+                     }
+                   }}
+                   className="w-full p-4 bg-[#FF2E00] text-white font-black uppercase tracking-widest text-sm brutal-shadow hover:bg-black transition-all border-4 border-black"
+                 >
+                   Decommission Bot
+                 </button>
+              </section>
+            </div>
+          )}
+          {activeTab === "knowledge" && (
+            <div className="space-y-12">
              <section className="space-y-6">
                 <div className="flex items-center justify-between border-b-[4px] border-black pb-2">
                   <h3 className="font-sans text-3xl font-black uppercase flex items-center gap-3"><Brain className="w-8 h-8" />Bot Memory</h3>
@@ -483,6 +541,182 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
               </div>
             </section>
 
+            </div>
+          )}
+          {activeTab === "config" && (
+            <div className="space-y-12">
+             <section className="space-y-6 bg-white p-8 border-[4px] border-black brutal-shadow">
+               <h3 className="font-sans text-2xl font-black uppercase flex items-center gap-2 mb-4">System Instructions</h3>
+               <textarea
+                 className="w-full bg-black text-[#D4FF00] border-[4px] border-black p-4 font-mono text-xs brutal-shadow outline-none placeholder:text-white/30 h-32"
+                 placeholder="e.g. You are a helpful assistant. Always verify data before responding."
+                 value={systemInstructions}
+                 onChange={(e) => setSystemInstructions(e.target.value)}
+                 onBlur={(e) => setDoc(doc(db, "users", auth.currentUser!.uid, "bots", bot.id), { config: { ...bot.config, systemInstructions: e.target.value }, updatedAt: serverTimestamp() }, { merge: true })}
+               />
+               <div className="flex gap-4 mt-4">
+                 {["Web Search", "Code Execution", "API Access"].map(tool => (
+                    <label key={tool} className="flex items-center gap-2 mono-type text-[10px] font-black uppercase cursor-pointer">
+                      <input type="checkbox" defaultChecked={true} className="w-4 h-4 accent-black" /> {tool}
+                    </label>
+                 ))}
+               </div>
+             </section>
+
+              <section className="space-y-6">
+                <div className="flex items-center justify-between border-b-[4px] border-black pb-2">
+                  <h3 className="font-sans text-3xl font-black uppercase flex items-center gap-2 underline decoration-4">Bot Core Directives</h3>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="mono-type text-[10px] font-black uppercase">Execution Strategy</label>
+                    <select
+                      value={strategy}
+                      onChange={(e) => setStrategy(e.target.value)}
+                      className="w-full bg-black border-[4px] border-black p-3 font-mono font-bold text-[#D4FF00] outline-none"
+                    >
+                      <option value="standard">Standard Operation</option>
+                      <option value="aggressive">Aggressive / Fast</option>
+                      <option value="conservative">Conservative / Safe</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="mono-type text-[10px] font-black uppercase">Success Criteria (Winning Condition)</label>
+                    <input
+                      className="w-full bg-black text-[#D4FF00] border-[4px] border-black p-3 font-mono font-bold text-xs brutal-shadow outline-none placeholder:text-white/30"
+                      placeholder="e.g. ROI > 5%, Resolved Support Ticket"
+                      defaultValue={bot.config?.winCondition || ""}
+                      onBlur={(e) => setDoc(doc(db, "users", auth.currentUser!.uid, "bots", bot.id), { config: { ...bot.config, winCondition: e.target.value }, updatedAt: serverTimestamp() }, { merge: true })}
+                    />
+                  </div>
+                </div>
+              </section>
+
+              <section className="space-y-6">
+                <div className="flex items-center justify-between border-b-[4px] border-black pb-2">
+                  <h3 className="font-sans text-3xl font-black uppercase flex items-center gap-3"><Zap className="w-8 h-8" />Auto-Reply</h3>
+                  <div className="flex items-center gap-3">
+                    <span className="mono-type text-[10px] font-black uppercase">{bot.config?.autoResponseEnabled ? 'ENABLED' : 'DISABLED'}</span>
+                    <button
+                      onClick={() => setDoc(doc(db, "users", auth.currentUser!.uid, "bots", bot.id), { config: { ...bot.config, autoResponseEnabled: !bot.config?.autoResponseEnabled }, updatedAt: serverTimestamp() }, { merge: true })}
+                      className={cn(
+                        "w-12 h-6 border-2 border-black relative transition-all brutal-shadow",
+                        bot.config?.autoResponseEnabled ? "bg-black" : "bg-white"
+                      )}
+                    >
+                      <div className={cn(
+                        "absolute top-0.5 w-4 h-4 transition-all",
+                        bot.config?.autoResponseEnabled ? "right-1 bg-white" : "left-1 bg-black"
+                      )} />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                      <label className="mono-type text-[10px] font-black uppercase">Reply Tone</label>
+                      <select
+                        value={bot.config?.responseTone || "Professional"}
+                        onChange={(e) => setDoc(doc(db, "users", auth.currentUser!.uid, "bots", bot.id), { config: { ...bot.config, responseTone: e.target.value }, updatedAt: serverTimestamp() }, { merge: true })}
+                        className="w-full bg-white border-[3px] border-black p-2 font-mono text-[10px] font-black uppercase"
+                      >
+                        <option>Professional</option>
+                        <option>Friendly</option>
+                        <option>Short & Direct</option>
+                        <option>Helpful</option>
+                      </select>
+                  </div>
+                  <div className="space-y-2">
+                      <label className="mono-type text-[10px] font-black uppercase">Bot Signature</label>
+                      <input
+                        className="w-full bg-white border-[3px] border-black p-2 font-mono text-[10px] font-black"
+                        defaultValue={bot.config?.responseSignature || "Bot Boss Assistant"}
+                        onBlur={(e) => setDoc(doc(db, "users", auth.currentUser!.uid, "bots", bot.id), { config: { ...bot.config, responseSignature: e.target.value }, updatedAt: serverTimestamp() }, { merge: true })}
+                      />
+                  </div>
+                </div>
+              </section>
+
+              <section className="space-y-6">
+                <div className="flex items-center justify-between border-b-[4px] border-black pb-2">
+                  <h3 className="font-sans text-3xl font-black uppercase flex items-center gap-2 underline decoration-4">Bot Actions</h3>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleSuggestWorkflows}
+                      disabled={isSuggesting}
+                      className="p-2 bg-[var(--brand)] text-black border-2 border-black hover:bg-white transition-all disabled:opacity-50"
+                      title="Get AI Suggestions"
+                    >
+                      {isSuggesting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Lightbulb className="w-5 h-5" />}
+                    </button>
+                    <button onClick={addWorkflow} className="p-2 bg-black text-white hover:bg-white hover:text-black transition-all border-2 border-black"><Plus className="w-5 h-5" /></button>
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  {workflows.map((wf) => (
+                    <div key={wf.id} className="bg-black text-white p-6 border-[4px] border-white/20 brutal-shadow relative">
+                      <button onClick={() => removeWorkflow(wf.id)} className="absolute top-2 right-2 text-white/50 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
+                      <div className="grid grid-cols-2 gap-4 mb-4">
+                        <div>
+                          <label className="mono-type text-[8px] font-black uppercase text-white/50 block mb-1">When this happens...</label>
+                          <select
+                            value={wf.trigger}
+                            onChange={(e) => updateWorkflow(wf.id, "trigger", e.target.value)}
+                            className="w-full bg-black border border-white/20 p-2 text-[10px] font-bold"
+                          >
+                            <option value="">Select Trigger</option>
+                            {PLATFORM_WORKFLOWS[bot.type]?.triggers.map(t => <option key={t} value={t}>{t}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="mono-type text-[8px] font-black uppercase text-white/50 block mb-1">Do this action...</label>
+                          <select
+                            value={wf.action}
+                            onChange={(e) => updateWorkflow(wf.id, "action", e.target.value)}
+                            className="w-full bg-black border border-white/20 p-2 text-[10px] font-bold"
+                          >
+                            <option value="">Select Action</option>
+                            {PLATFORM_WORKFLOWS[bot.type]?.actions.map(a => <option key={a} value={a}>{a}</option>)}
+                          </select>
+                        </div>
+                      </div>
+                      <textarea
+                        placeholder="Special instructions for this rule..."
+                        rows={2}
+                        value={wf.prompt}
+                        onChange={(e) => updateWorkflow(wf.id, "prompt", e.target.value)}
+                        className="w-full bg-black border border-white/20 p-3 text-[10px] font-mono focus:border-[var(--brand)] focus:outline-none"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </section>
+            </div>
+          )}
+
+          {activeTab === "playground" && (
+            <div className="space-y-12">
+              <section className="bg-white p-8 border-[4px] border-black brutal-shadow h-[400px] flex flex-col">
+                 <h3 className="font-sans text-2xl font-black uppercase border-b-4 border-black pb-2 mb-4">Playground Interface</h3>
+                 <div className="flex-grow bg-black text-[#D4FF00] p-4 font-mono text-xs overflow-y-auto border-4 border-black mb-4">
+                   <div className="opacity-50 italic text-center mt-10">Simulation initialized with current bot configuration...</div>
+                   <div className="mt-4 opacity-50 italic text-center">Awaiting user input...</div>
+                 </div>
+                 <div className="flex gap-2">
+                   <input
+                     className="flex-grow bg-white border-[4px] border-black p-3 font-mono font-bold text-xs outline-none"
+                     placeholder="Send a test message..."
+                   />
+                   <button className="bg-black text-white px-6 font-black uppercase hover:bg-[var(--brand)] hover:text-black border-4 border-black transition-colors">
+                     Send
+                   </button>
+                 </div>
+              </section>
+            </div>
+          )}
+
+          {(activeTab === "config" || activeTab === "overview") && (
             <div className="pt-10 flex gap-4">
                <button 
                  onClick={handleSaveConfig}
@@ -499,40 +733,8 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
                  <Play className={cn("w-8 h-8", isGenerating && "animate-pulse")} />
                </button>
             </div>
+          )}
 
-            <div className="space-y-4">
-               <div className="flex items-center justify-between border-b-[4px] border-black pb-2">
-                  <h3 className="font-sans text-xl font-black uppercase">Recent Bot Activity</h3>
-                  <span className="bg-black text-[var(--brand)] px-2 py-0.5 text-[8px] font-black mono-type uppercase">Live Feed</span>
-               </div>
-               <div className="w-full h-48 bg-white border-[4px] border-black p-4 font-mono text-[10px] overflow-y-auto space-y-2">
-                   {activities.length === 0 ? <div className="text-center opacity-30 py-10 uppercase">Waiting for activity...</div> : activities.map((log) => (
-                     <div key={log.id} className="flex gap-4 border-l-2 border-black/10 pl-2">
-                        <span className="opacity-30 italic">[{log.timestamp?.toDate().toLocaleTimeString()}]</span>
-                        <p className={cn(
-                          "font-bold",
-                          log.type === 'error' ? "text-red-500" : (log.type === 'action' ? "text-black" : "text-blue-600")
-                        )}>
-                          {log.text}
-                        </p>
-                     </div>
-                   ))}
-               </div>
-            </div>
-             <section className="pt-10 border-t-4 border-black">
-                <button 
-                  onClick={async () => {
-                    if (confirm("Are you sure you want to decommission this bot? All its memory and files will be permanently erased.")) {
-                      await deleteDoc(doc(db, "users", auth.currentUser!.uid, "bots", bot.id));
-                      onClose();
-                    }
-                  }}
-                  className="w-full p-4 bg-[#FF2E00] text-white font-black uppercase tracking-widest text-sm brutal-shadow hover:bg-black transition-all border-4 border-black"
-                >
-                  Decommission Bot
-                </button>
-             </section>
-          </div>
         </div>
       </motion.div>
     </AnimatePresence>
