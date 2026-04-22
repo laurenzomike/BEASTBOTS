@@ -510,8 +510,15 @@ app.post("/api/config/:botType", async (req, res) => {
     }
 
     const botRef = db.collection("users").doc(String(uid)).collection("bots").doc(botType);
+    const existingBot = await botRef.get();
+    const existingConfig = existingBot.data()?.config || {};
+
+    // Merge parameters carefully so omitted keys (the "********" ones not sent) are kept
+    const finalParameters = { ...(existingConfig.parameters || {}), ...(config.parameters || {}) };
+    const finalConfig = { ...existingConfig, ...config, parameters: finalParameters };
+
     await botRef.set({
-      config: config,
+      config: finalConfig,
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
 

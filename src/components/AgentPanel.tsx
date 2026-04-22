@@ -145,6 +145,15 @@ const ContentSettings = ({ config, setConfig }: { config: any, setConfig: any })
       });
       setParameters(paramsArray.length > 0 ? paramsArray : [{key: "", value: ""}]);
 
+      // Also mask top level keys so they don't show ciphertext
+      const displayConfig = { ...bot.config };
+      ['apiKey', 'apiSecret', 'password', 'proxyWalletAddress', 'email'].forEach(k => {
+          if (typeof displayConfig[k] === 'string' && displayConfig[k].split(':').length === 3) {
+              displayConfig[k] = "********";
+          }
+      });
+      setLocalConfig(displayConfig);
+
       // Check platform connection
       checkPlatform();
     }
@@ -190,12 +199,22 @@ const ContentSettings = ({ config, setConfig }: { config: any, setConfig: any })
     try {
       const validParams: Record<string, string> = {};
       parameters.forEach(p => {
-        if (p.key.trim()) validParams[p.key.trim()] = p.value;
+        if (p.key.trim() && p.value !== "********") {
+           validParams[p.key.trim()] = p.value;
+        }
+      });
+
+      // Clean top level localConfig
+      const cleanLocalConfig = { ...localConfig };
+      ['apiKey', 'apiSecret', 'password', 'proxyWalletAddress', 'email'].forEach(k => {
+          if (cleanLocalConfig[k as keyof typeof cleanLocalConfig] === "********") {
+              delete cleanLocalConfig[k as keyof typeof cleanLocalConfig]; // Don't send, let backend merge keep the old one
+          }
       });
 
       const isTradingBot = ['alpaca', 'coinbase', 'kalshi', 'polymarket'].includes(bot.type);
       const newConfig = {
-        ...localConfig,
+        ...cleanLocalConfig,
         instruction,
         scheduleType,
         intervalMs,
