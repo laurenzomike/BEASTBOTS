@@ -122,11 +122,15 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
     setIsTyping(true);
 
     try {
+      const knowledgeContext = files.filter(f => f.content).map(f => `--- Document: ${f.fileName} ---\n${f.content}\n`).join("\n");
+
       const systemInstruction = `System Instructions: ${systemInstructions || "You are a helpful assistant."}
 Role: ${bot.type} Bot
 Strategy: ${strategy}
 Win Condition: ${bot.config?.winCondition || "None"}
 Workflows Context: ${workflows.map(w => w.action).join(", ")}
+
+${knowledgeContext ? `KNOWLEDGE BASE PROVIDED BY USER:\n${knowledgeContext}\nUse the knowledge base above to answer user questions when relevant.` : ""}
 Respond directly as the bot.`;
 
       const history = chatHistory.map(msg => ({
@@ -170,7 +174,10 @@ Respond directly as the bot.`;
     setIsGenerating(true);
     addLog(`Initiating AI Simulation Cycle for ${bot.name}...`);
     try {
-      const prompt = `Simulate an execution step for ${bot.type}. Current strategy: ${strategy}. Global goals: ${bot.config.userGoal || "Dominance"}. Provide a short report.`;
+      const knowledgeContext = files.filter(f => f.content).map(f => `--- Document: ${f.fileName} ---\n${f.content}\n`).join("\n");
+      const prompt = `Simulate an execution step for ${bot.type}. Current strategy: ${strategy}. Global goals: ${bot.config.userGoal || "Dominance"}.
+${knowledgeContext ? `KNOWLEDGE BASE:\n${knowledgeContext}\n` : ""}
+Provide a short report.`;
 
       const token = await auth.currentUser?.getIdToken();
       const res = await fetch("/api/ai/generate", {
@@ -209,18 +216,26 @@ Respond directly as the bot.`;
     if (!e.target.files?.length) return;
     setIsUploading(true);
     const file = e.target.files[0];
+
     try {
+      let content = "";
+      if (file.type.startsWith("text/") || file.name.endsWith(".md") || file.name.endsWith(".json")) {
+        content = await file.text();
+      }
+
       const filesRef = collection(db, "users", auth.currentUser!.uid, "bots", bot.id, "files");
       await addDoc(filesRef, {
         fileName: file.name,
         fileSize: file.size,
         contentType: file.type,
-        contentSummary: "Analyzing document patterns and core instructions...",
+        content: content.slice(0, 100000), // Max ~100k chars to prevent massive document explosion
+        contentSummary: content ? `Extracted ${content.length} characters of knowledge data.` : "Binary/unsupported format. Metadata indexed.",
         createdAt: serverTimestamp()
       });
       addLog(`Knowledge asset "${file.name}" uploaded and indexed.`);
     } catch (e) {
       console.error(e);
+      addLog(`Failed to index asset: ${e instanceof Error ? e.message : 'Unknown error'}`);
     } finally {
       setIsUploading(false);
     }
