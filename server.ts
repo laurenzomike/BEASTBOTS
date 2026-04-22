@@ -103,7 +103,7 @@ app.get(["/api/oauth/:provider/callback", "/api/oauth/:provider/callback/"], asy
   const { code, state, error } = req.query;
 
   if (error) {
-    return res.status(400).json({ error });
+    return res.send(`<html><body><p>Error: ${error}</p></body></html>`);
   }
 
   try {
@@ -175,7 +175,7 @@ app.get(["/api/oauth/:provider/callback", "/api/oauth/:provider/callback/"], asy
         <body>
           <script>
             if (window.opener) {
-               window.opener.postMessage({ type: 'OAUTH_AUTH_SUCCESS', provider: ${JSON.stringify(provider).replace(/</g, '\\u003c')} }, '*');
+               window.opener.postMessage({ type: 'OAUTH_AUTH_SUCCESS', provider: '${provider}' }, '*');
                window.close();
             } else {
                window.location.href = '/';
