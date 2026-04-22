@@ -1,6 +1,9 @@
 import crypto from 'crypto';
 
 const ALGORITHM = 'aes-256-gcm';
+if (process.env.NODE_ENV === 'production' && !process.env.ENCRYPTION_KEY) {
+    throw new Error("FATAL: ENCRYPTION_KEY environment variable MUST be set in production to secure the Secrets Vault.");
+}
 const RAW_KEY = process.env.ENCRYPTION_KEY || 'development_fallback_secret_key_32_bytes_long_!@#';
 const ENCRYPTION_KEY = crypto.scryptSync(RAW_KEY, 'salt', 32);
 

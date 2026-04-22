@@ -2,6 +2,9 @@ import { encryptSecret, decryptSecret } from "./src/server/vault.js";
 import { executionQueue } from "./src/server/queue.js";
 import "./src/server/worker.js";
 import express from "express";
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
+
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import crypto from "crypto";
@@ -26,6 +29,28 @@ const app = express();
 const PORT = 3000;
 
 app.use(express.json());
+
+// Security Headers
+app.use(helmet({
+  contentSecurityPolicy: false, // Vite uses inline scripts in dev
+  crossOriginEmbedderPolicy: false
+}));
+
+// Global Rate Limiting (Standard)
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: { error: "Too many requests from this IP, please try again after 15 minutes" }
+});
+app.use("/api/", globalLimiter);
+
+// Strict Execution Rate Limiting (Prevent Capital Drain / API Abuse)
+const executeLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 10, // limit each IP to 10 executions per minute
+  message: { error: "Execution rate limit exceeded. Cooling down autonomous fleet to prevent API bans." }
+});
+
 
 // API Routes
 app.get("/api/health", (req, res) => {
@@ -529,7 +554,7 @@ app.post("/api/config/:botType", async (req, res) => {
   }
 });
 
-app.post("/api/execute/:botType", async (req, res) => {
+app.post("/api/execute/:botType", executeLimiter, async (req, res) => {
   const { botType } = req.params;
   const { uid, actionIntent, aiReasoning } = req.body;
 
