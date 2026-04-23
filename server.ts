@@ -19,9 +19,6 @@ if (!admin.apps.length) {
 }
 const db = admin.firestore();
 
-const apiKey = process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
-const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
-
 // Initialize express app
 const app = express();
 const PORT = 3000;
@@ -32,6 +29,9 @@ app.use(express.json());
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok" });
 });
+const apiKey = process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
+
 app.post("/api/ai/generate", async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
@@ -513,6 +513,17 @@ app.post("/api/execute/:botType", async (req, res) => {
   }
 
   try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const idToken = authHeader.split('Bearer ')[1];
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+
+    if (decodedToken.uid !== uid) {
+      return res.status(403).json({ error: "Forbidden: UID mismatch" });
+    }
     // 1. Fetch user's secured keys from Firestore
     const botDoc = await db.collection("users").doc(String(uid)).collection("bots").doc(botType).get();
     const config = botDoc.data()?.config || {};

@@ -307,6 +307,23 @@ ${prompt}`;
       const botRef = doc(db, "users", user.uid, "bots", botId);
       await setDoc(botRef, { status, updatedAt: serverTimestamp() }, { merge: true });
       addToast(`${botId.toUpperCase()} status updated to ${status}.`, "info");
+
+      // Dispatch a backend job when a bot is turned on
+      if (status === "online") {
+         const token = await auth.currentUser?.getIdToken();
+         fetch(`/api/execute/${botId}`, {
+           method: "POST",
+           headers: {
+             "Content-Type": "application/json",
+             "Authorization": `Bearer ${token}`
+           },
+           body: JSON.stringify({
+             uid: user.uid,
+             actionIntent: "INITIALIZE_AND_RUN",
+             aiReasoning: "User manually activated bot."
+           })
+         }).catch(console.error); // Fire and forget
+      }
     } catch (error) {
       handleFirestoreError(error, 'update', `users/${user.uid}/bots/${botId}`);
     }
