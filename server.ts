@@ -112,9 +112,9 @@ app.get(["/api/oauth/:provider/callback", "/api/oauth/:provider/callback/"], asy
     const redirectUri = `${process.env.APP_URL}/api/oauth/${provider}/callback`;
 
     let tokenEndpoint = "";
-    let tokenHeaders: any = { "Content-Type": "application/x-www-form-urlencoded" };
-    let body: any = {
-      code,
+    let tokenHeaders: Record<string, string> = { "Content-Type": "application/x-www-form-urlencoded" };
+    let body: Record<string, string | undefined> = {
+      code: code as string,
       client_id: process.env[`${provider.toUpperCase()}_CLIENT_ID`],
       client_secret: process.env[`${provider.toUpperCase()}_CLIENT_SECRET`],
       grant_type: "authorization_code",
@@ -289,8 +289,9 @@ app.get("/api/platform/:botType/info", async (req, res) => {
             trending_priority: "High"
           }
         });
-      } catch (err: any) {
-        return res.json({ connected: true, status: "Sync Error", error: err.message });
+      } catch (err: unknown) {
+        const errorMessage = err instanceof Error ? err.message : "Unknown error occurred";
+        return res.json({ connected: true, status: "Sync Error", error: errorMessage });
       }
     }
 
@@ -770,9 +771,10 @@ app.post("/api/execute/:botType", async (req, res) => {
 
     res.json({ success: true, executed: true, data: executionResult });
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error(`Live execution failed for ${botType}:`, err);
-    res.status(500).json({ error: "Execution failed", details: err.message });
+    const errorMessage = err instanceof Error ? err.message : "Unknown error occurred";
+    res.status(500).json({ error: "Execution failed", details: errorMessage });
   }
 });
 
