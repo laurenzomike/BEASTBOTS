@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Key, X, ShieldCheck, ShieldAlert, CheckCircle, RefreshCw, Layers, ExternalLink, Cpu, Trash2, Plus, Search, Filter } from 'lucide-react';
+import { Key, ShieldCheck, ShieldAlert, CheckCircle, RefreshCw, Layers, ExternalLink, Cpu, Trash2, Plus, Search, Filter } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { BOT_TYPES } from '../constants';
 import { doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';

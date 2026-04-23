@@ -201,21 +201,6 @@ app.get("/api/platform/:botType/info", async (req, res) => {
   const { uid } = req.query;
   
   if (!uid) return res.status(400).json({ error: "UID required" });
-
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return res.status(401).json({ error: "Unauthorized: Missing or invalid token" });
-  }
-
-  const token = authHeader.split(" ")[1];
-  try {
-    const decodedToken = await admin.auth().verifyIdToken(token);
-    if (decodedToken.uid !== String(uid)) {
-      return res.status(403).json({ error: "Forbidden: UID mismatch" });
-    }
-  } catch (error) {
-    return res.status(401).json({ error: "Unauthorized: Invalid token" });
-  }
   
   try {
     const botDoc = await db.collection("users").doc(String(uid)).collection("bots").doc(botType).get();
@@ -489,21 +474,6 @@ app.post("/api/execute/:botType", async (req, res) => {
 
   if (!uid || !actionIntent) {
     return res.status(400).json({ error: "UID and actionIntent are required" });
-  }
-
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return res.status(401).json({ error: "Unauthorized: Missing or invalid token" });
-  }
-
-  const token = authHeader.split(" ")[1];
-  try {
-    const decodedToken = await admin.auth().verifyIdToken(token);
-    if (decodedToken.uid !== String(uid)) {
-      return res.status(403).json({ error: "Forbidden: UID mismatch" });
-    }
-  } catch (error) {
-    return res.status(401).json({ error: "Unauthorized: Invalid token" });
   }
 
   try {
