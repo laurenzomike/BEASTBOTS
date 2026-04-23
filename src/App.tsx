@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useMemo } from "react";
 import { auth, db, login, logout, handleFirestoreError } from "./lib/firebase";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { collection, onSnapshot, doc, setDoc, getDocs, addDoc, query, where, serverTimestamp, orderBy, limit, increment } from "firebase/firestore";
@@ -331,12 +331,16 @@ Keep it to 1-2 authoritative sentences.`;
     }
   };
 
-  const filteredBots = bots.filter(bot => {
-    const matchesSearch = bot.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                         bot.type.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === "all" || bot.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  // ⚡ Bolt: Memoize filteredBots and cache lowercase searchQuery to prevent O(N) string allocations on every render
+  const filteredBots = useMemo(() => {
+    const lowerQuery = searchQuery.toLowerCase();
+    return bots.filter(bot => {
+      const matchesSearch = bot.name.toLowerCase().includes(lowerQuery) ||
+                           bot.type.toLowerCase().includes(lowerQuery);
+      const matchesStatus = statusFilter === "all" || bot.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [bots, searchQuery, statusFilter]);
 
   if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-[var(--brand)] font-black text-4xl animate-pulse">STARTING BOT BOSS...</div>;
   if (!user) return <div className="min-h-screen bg-black flex flex-col items-center justify-center p-6"><Zap className="w-24 h-24 text-[var(--brand)] mb-8" /><button onClick={login} className="hardware-button">Login to Manage Bots</button></div>;
