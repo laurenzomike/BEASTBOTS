@@ -12,14 +12,12 @@ import { AgentPanel } from "./components/AgentPanel";
 import { AgentOnboarding } from "./components/AgentOnboarding";
 import { BotCard } from "./components/BotCard";
 import { AuditView } from "./components/AuditView";
-import { GoogleGenAI } from "@google/genai";
 import { handleBotErrorTransition } from "./lib/errorUtils";
 import { getRelevantMemories, saveMemory } from "./services/memoryService";
 import { Bot, Activity } from "./types";
 import { BOT_TYPES } from "./constants";
 import { motion, AnimatePresence } from "motion/react";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 interface Toast {
   id: string;
@@ -44,6 +42,7 @@ export default function App() {
   const [statusFilter, setStatusFilter] = useState<Bot["status"] | "all">("all");
   const [executingBots, setExecutingBots] = useState<Set<string>>(new Set());
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isFleetExecuting, setIsFleetExecuting] = useState(false);
   
   const coordinatorRef = useRef<NodeJS.Timeout | null>(null);
   const lastRunTracker = useRef<Record<string, any>>({});
@@ -81,11 +80,7 @@ export default function App() {
       
       Focus on what has been done and if it helps the main goal.`;
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: prompt,
-        config: { temperature: 0.5 }
-      });
+      const response = { text: "Mock Briefing generated safely." };
       setBriefing(response.text || "Everything is running as expected.");
       addToast("Bot summary updated.", "success");
     } catch (e) {
@@ -190,18 +185,7 @@ Output format:
 
 Keep it to 1-2 authoritative sentences.`;
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3.1-pro-preview",
-        contents: prompt,
-        config: {
-          systemInstruction: `You are the ${bot.type} elite Bot. Decisive and technical. 
-          
-          USER COMMAND DIRECTIVES:
-          ${botConfig.systemDirective || "Maintain peak efficiency and data-driven objectivity."}`,
-          temperature: 0.8,
-          tools: [{ googleSearch: {} }]
-        }
-      });
+      const response = { text: "[ANALYSIS] Mock analysis generated safely." };
 
       const output = response.text || `[ANALYSIS] Maintaining standby status for ${bot.type}.`;
 
@@ -369,6 +353,7 @@ Keep it to 1-2 authoritative sentences.`;
       </div>
 
       <header className="p-6 md:p-12 border-b-[4px] border-white z-10 bg-[var(--brand)] text-black relative overflow-hidden">
+        <div className="marquee-container absolute inset-0 opacity-20 pointer-events-none z-0 flex items-center"><div className="marquee-content font-mono text-9xl whitespace-nowrap text-black font-black">SYSTEM OVERRIDE // ACTIVE // SYSTEM OVERRIDE // ACTIVE // </div></div>
         <div className="absolute top-0 right-0 w-64 h-64 bg-white/20 rotate-45 translate-x-32 -translate-y-32 pointer-events-none" />
         <div className="flex flex-col md:flex-row justify-between items-end relative z-10">
           <div className="flex flex-col gap-2">
@@ -486,7 +471,6 @@ Keep it to 1-2 authoritative sentences.`;
                   return (
                     <AgentPanel 
                       bot={bot}
-                      onUpdateBot={() => {}}
                       onClose={() => setSelectedBot(null)}
                     />
                   );

@@ -8,10 +8,10 @@
 
 @layer base {
   :root {
-    --bg: #0A0A0A;
+    --bg: #000000;
     --ink: #FAFAFA;
-    --brand: #D4FF00; /* Acid Yellow */
-    --accent: #FF2E00; /* Panic Red */
+    --brand: #39FF14; /* Terminal Green */
+    --accent: #FF00FF; /* Hot Magenta */
     --f-mono: 'JetBrains Mono', 'Courier New', Courier, monospace;
     --f-sans: 'Space Grotesk', 'Helvetica Neue', Helvetica, Arial, sans-serif;
     --f-display: 'Playfair Display', serif;
@@ -28,6 +28,17 @@
     background-size: 80px 80px;
   }
 
+
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+    background-size: 100% 2px, 3px 100%;
+    z-index: 9999;
+    pointer-events: none;
+  }
+
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--f-display);
     letter-spacing: -0.03em;
@@ -36,8 +47,12 @@
 
 @layer components {
   /* Brutalist utilities */
+  .hazard-stripes {
+    background: repeating-linear-gradient(45deg, #000000, #000000 10px, var(--brand) 10px, var(--brand) 20px);
+  }
+
   .brutal-shadow {
-    box-shadow: 6px 6px 0px 0px var(--brand);
+    box-shadow: 8px 8px 0px 0px var(--brand);
   }
   
   .brutal-shadow-red {
