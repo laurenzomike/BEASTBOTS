@@ -100,7 +100,7 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
       Instructions: Execute this manual command. Format output with [ACTION] or [ANALYSIS]. If you take an action, it will be executed on the server.`;
       
       const result = await ai.models.generateContent({
-        model: "gemini-3.1-pro-preview",
+        model: "gemini-2.5-pro",
         contents: prompt
       });
       
@@ -182,7 +182,7 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
     try {
       const prompt = `Simulate an execution step for ${bot.type}. Current strategy: ${strategy}. Global goals: ${bot.config.userGoal || "Dominance"}. Provide a short report formatted starting with [ACTION] or [ANALYSIS] like a standard operation.`;
       const result = await ai.models.generateContent({
-        model: "gemini-3.1-pro-preview",
+        model: "gemini-2.5-pro",
         contents: prompt
       });
       
