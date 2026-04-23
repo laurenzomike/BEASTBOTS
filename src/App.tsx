@@ -50,6 +50,7 @@ export default function App() {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<Bot["status"] | "all">("all");
+  const [fleetIntelligence, setFleetIntelligence] = useState<string>("");
   const [executingBots, setExecutingBots] = useState<Set<string>>(new Set());
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -171,6 +172,9 @@ export default function App() {
         const data = snapshot.data();
         if (data.globalDirective && data.globalDirective !== globalDirective) {
           setGlobalDirective(data.globalDirective);
+        }
+        if (data.fleetIntelligence && data.fleetIntelligence !== fleetIntelligence) {
+          setFleetIntelligence(data.fleetIntelligence);
         }
       }
     });
@@ -657,7 +661,7 @@ Keep it to 1-2 authoritative sentences.`;
         onPersonaChange={setPersona}
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 min-h-screen">
+      <div className="grid grid-cols-1 lg:grid-cols-12 min-h-screen">
         <AppSidebar
           isMobileMenuOpen={isMobileMenuOpen}
           setIsMobileMenuOpen={setIsMobileMenuOpen}
@@ -670,10 +674,12 @@ Keep it to 1-2 authoritative sentences.`;
           handleGlobalDirectiveSubmit={handleGlobalDirectiveSubmit}
           persona={persona}
           setPersona={setPersona}
+          fleetIntelligence={fleetIntelligence}
           bots={bots}
+          className="lg:col-span-3 xl:col-span-2"
         />
 
-        <main className="lg:col-span-3 pb-32 bg-[#121212] overflow-x-hidden relative min-h-screen">
+        <main className="lg:col-span-9 xl:col-span-10 pb-32 bg-[#121212] overflow-x-hidden relative min-h-screen">
           <AnimatePresence mode="wait">
             {currentView === "audit" && (
               <motion.div 

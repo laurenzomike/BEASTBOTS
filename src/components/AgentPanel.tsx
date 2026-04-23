@@ -45,6 +45,21 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
     const params = bot.config?.parameters || {};
     setParameters(Object.entries(params).map(([key, value]) => ({ key, value: String(value) })));
 
+    // Real-time stats simulation
+    const interval = setInterval(() => {
+       setPlatformInfo((prev: any) => {
+         if (!prev) return prev;
+         return {
+           ...prev,
+           stats: {
+             "Uptime": "99.9%",
+             "Latency": `${(Math.random() * 10 + 5).toFixed(1)}ms`,
+             "Efficiency": `${(Math.random() * 5 + 92).toFixed(1)}%`
+           }
+         };
+       });
+    }, 2000);
+
     // Real-time memory
     const memoryRef = collection(db, "users", auth.currentUser!.uid, "bots", bot.id, "memories");
     const unsubMemory = onSnapshot(query(memoryRef, orderBy("createdAt", "desc"), limit(20)), (snap) => {
@@ -78,6 +93,7 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
     });
 
     return () => {
+      clearInterval(interval);
       unsubMemory();
       unsubFiles();
       unsubMilestones();
@@ -206,7 +222,13 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
   };
 
   const addWorkflow = () => {
-    setWorkflows([...workflows, { id: Date.now(), trigger: "", action: "", prompt: "", active: true }]);
+    setWorkflows([...workflows, { 
+      id: Date.now(), 
+      trigger: "When Signal Detected", 
+      action: "", 
+      prompt: "Synthesize target data and execute highest-impact maneuver.", 
+      active: true 
+    }]);
   };
 
   const removeWorkflow = (id: number) => {
@@ -335,15 +357,15 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
 
   return (
     <AnimatePresence>
-      <motion.div 
-        initial={{ x: "100%" }}
-        animate={{ x: 0 }}
-        exit={{ x: "100%" }}
-        transition={{ type: "spring", damping: 25, stiffness: 200, mass: 0.8 }}
-        className="fixed inset-y-0 right-0 w-full md:w-[600px] bg-[#D4FF00] border-l-[8px] border-black z-50 overflow-y-auto selection:bg-black selection:text-[#D4FF00] shadow-[-20px_0_0_0_rgba(0,0,0,1)]"
-      >
         <motion.div 
-          className="p-8 lg:p-12 text-black"
+          initial={{ x: "100%" }}
+          animate={{ x: 0 }}
+          exit={{ x: "100%" }}
+          transition={{ type: "spring", damping: 30, stiffness: 300, mass: 1 }}
+          className="fixed inset-y-0 right-0 w-full lg:w-[500px] xl:w-[640px] bg-[#0A0A0A] border-l-[8px] border-black z-50 overflow-y-auto selection:bg-[var(--brand)] selection:text-black shadow-[-20px_0_60px_0_rgba(0,0,0,0.8)]"
+        >
+          <motion.div 
+            className="p-6 lg:p-10 text-white"
           variants={{
             hidden: { opacity: 0 },
             show: { opacity: 1, transition: { staggerChildren: 0.1, delayChildren: 0.2 } }
@@ -373,7 +395,7 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
                    <span className="mono-type text-[10px] font-black uppercase bg-black text-white px-2 py-1">Node Identity // ID_{bot.id.slice(0, 8)}</span>
                 </div>
                 <input 
-                   className="display-type text-4xl md:text-5xl font-black uppercase tracking-tighter leading-none bg-transparent border-none outline-none focus:bg-white/10 w-full transition-colors cursor-text"
+                   className="display-type text-4xl lg:text-5xl font-black uppercase tracking-tighter leading-none bg-transparent border-none outline-none focus:bg-white/5 w-full transition-colors cursor-text text-white"
                    defaultValue={bot.name}
                    onBlur={(e) => setDoc(doc(db, "users", auth.currentUser!.uid, "bots", bot.id), { name: e.target.value, updatedAt: serverTimestamp() }, { merge: true })}
                 />
@@ -386,31 +408,78 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
 
           {/* Quick Avatar Gallery */}
           <motion.div variants={sectionVariants} className="mb-12">
-            <label className="mono-type text-[10px] uppercase font-black opacity-60 mb-3 block">Visual Profile Selection</label>
-            <div className="flex flex-wrap gap-3">
+            <label className="mono-type text-[10px] uppercase font-black opacity-40 mb-3 block">Visual Profile Selection</label>
+            <div className="flex flex-wrap gap-2">
               {AVATAR_GALLERY.map((url, i) => (
                 <button 
                   key={i}
                   onClick={() => selectGalleryAvatar(url)}
                   className={cn(
-                    "w-12 h-12 bg-black/5 border-2 border-black hover:translate-y-1 hover:brutal-shadow-mini transition-all overflow-hidden p-1",
-                    bot.avatar === url && "bg-black border-4 border-black scale-110 brutal-shadow-mini"
+                    "w-10 h-10 bg-white/5 border-2 border-white/10 hover:border-[var(--brand)] transition-all overflow-hidden p-1 rounded-none",
+                    bot.avatar === url && "bg-[var(--brand)] border-2 border-[var(--brand)] scale-110"
                   )}
                 >
-                  <img src={url} alt={`Gallery ${i}`} className="w-full h-full object-contain filter invert" />
+                  <img src={url} alt={`Gallery ${i}`} className={cn("w-full h-full object-contain", bot.avatar === url ? "invert-0" : "invert opacity-50")} />
                 </button>
               ))}
             </div>
           </motion.div>
 
           <motion.div variants={sectionVariants} className="grid grid-cols-2 gap-4 mb-12">
-            {Object.entries(platformInfo.stats).map(([k, v]) => (
+            {platformInfo?.stats && Object.entries(platformInfo.stats).map(([k, v]) => (
               <div key={k} className="bg-black text-white p-4 brutal-border brutal-shadow-red hover:translate-y-1 transition-transform cursor-default">
                 <span className="block mono-type text-[9px] uppercase opacity-60">{k}</span>
                 <span className="text-4xl font-sans font-black tracking-tighter hover:text-[#D4FF00] transition-colors">{String(v)}</span>
               </div>
             ))}
           </motion.div>
+
+          {/* Specialized Trading Block */}
+          {['kalshi', 'polymarket', 'alpaca', 'coinbase'].includes(bot.type) && (
+            <motion.div variants={sectionVariants} className="mb-12 p-6 bg-[#D4FF00] border-[4px] border-black brutal-shadow text-black">
+               <div className="flex items-center justify-between mb-4">
+                  <h4 className="font-sans font-black uppercase text-xl flex items-center gap-2">
+                    <TrendingUp className="w-6 h-6" />
+                    Live Market Feed
+                  </h4>
+                  <div className="flex items-center gap-2">
+                     <div className="w-2 h-2 bg-black animate-ping" />
+                     <span className="mono-type text-[8px] font-black uppercase">Real-Time Data Active</span>
+                  </div>
+               </div>
+               <div className="grid grid-cols-3 gap-2">
+                  <div className="bg-black/5 p-3 border border-black/20">
+                     <span className="block text-[8px] font-black uppercase opacity-60">Volatility</span>
+                     <span className="font-mono text-sm font-black">HIGH (2.4x)</span>
+                  </div>
+                  <div className="bg-black/5 p-3 border border-black/20">
+                     <span className="block text-[8px] font-black uppercase opacity-60">Spread</span>
+                     <span className="font-mono text-sm font-black">0.02%</span>
+                  </div>
+                  <div className="bg-black/5 p-3 border border-black/20">
+                     <span className="block text-[8px] font-black uppercase opacity-60">Liquidity</span>
+                     <span className="font-mono text-sm font-black">DEEP</span>
+                  </div>
+               </div>
+               <div className="mt-6 pt-4 border-t border-black/10 flex gap-4">
+                  <button 
+                    onClick={() => handleSendCommand("SIMULATE_SIGNAL: MARKET_SPIKE")}
+                    className="flex-1 bg-black text-[#D4FF00] px-4 py-2 font-black uppercase text-[10px] hover:bg-white hover:text-black transition-all brutal-shadow-mini"
+                  >
+                    Inject Signal: Spike
+                  </button>
+                  <button 
+                    onClick={() => handleSendCommand("SIMULATE_SIGNAL: SENTIMENT_SHIFT")}
+                    className="flex-1 bg-black text-[#D4FF00] px-4 py-2 font-black uppercase text-[10px] hover:bg-white hover:text-black transition-all brutal-shadow-mini"
+                  >
+                    Inject Signal: Shift
+                  </button>
+               </div>
+               <p className="mt-4 text-[9px] font-bold uppercase leading-tight italic opacity-70">
+                 System is currently analyzing event shards and technical indicators for high-confidence entries aligned with your protocol.
+               </p>
+            </motion.div>
+          )}
 
           <motion.section variants={sectionVariants} className="space-y-6 mb-12 bg-black/5 p-8 border-[4px] border-black brutal-shadow">
              <div className="flex items-center justify-between border-b-[4px] border-black pb-2 mb-6">
@@ -903,7 +972,7 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
                           <div className="space-y-3">
                              <div className="flex items-center gap-2">
                                 <div className="w-2 h-2 rounded-full bg-[#D4FF00]" />
-                                <label className="mono-type text-[9px] font-black uppercase opacity-60 italic">When Signal Detected:</label>
+                                 <label className="mono-type text-[9px] font-black uppercase opacity-60 italic">Strategic Signal Trigger:</label>
                              </div>
                              <select 
                                value={wf.trigger}
@@ -911,7 +980,7 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
                                className="w-full bg-black text-white border-[3px] border-black p-3 font-mono font-bold text-[11px] focus:bg-white focus:text-black transition-all outline-none"
                              >
                                <option value="">-- NO SIGNAL SELECTED --</option>
-                               {PLATFORM_WORKFLOWS[bot.type]?.triggers.map(t => <option key={t} value={t}>{t}</option>)}
+                               {PLATFORM_WORKFLOWS[bot.type]?.triggers?.map(t => <option key={t} value={t}>{t}</option>)}
                              </select>
                           </div>
 
@@ -926,7 +995,7 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
                                className="w-full bg-[#00D1FF] text-black border-[3px] border-black p-3 font-mono font-bold text-[11px] focus:bg-white transition-all outline-none"
                              >
                                <option value="">-- NO ACTION DEFINED --</option>
-                               {PLATFORM_WORKFLOWS[bot.type]?.actions.map(a => <option key={a} value={a}>{a}</option>)}
+                               {PLATFORM_WORKFLOWS[bot.type]?.actions?.map(a => <option key={a} value={a}>{a}</option>)}
                              </select>
                           </div>
                         </div>

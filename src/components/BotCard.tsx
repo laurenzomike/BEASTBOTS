@@ -28,11 +28,14 @@ export const BotCard: React.FC<BotCardProps> = ({ bot, index, onSelect, onUpdate
       layout
       whileHover={{ y: -8, scale: 1.02 }}
       transition={{ type: "spring", stiffness: 300, damping: 20 }}
-      className="grid-cell flex flex-col justify-between group min-h-[340px] border-4 border-white/10 hover:border-white transition-all duration-300 rounded-none brutal-shadow bg-[#0A0A0A] hover:bg-black overflow-hidden relative"
+      className="grid-cell flex flex-col justify-between group min-h-[380px] border-4 border-white/10 hover:border-white transition-all duration-300 rounded-none brutal-shadow bg-[#0A0A0A] hover:bg-black overflow-hidden relative"
     >
       {/* Dynamic Background Noise/Pattern */}
       <div className="absolute inset-0 opacity-[0.03] group-hover:opacity-[0.07] pointer-events-none transition-opacity duration-500" 
            style={{ backgroundImage: `radial-gradient(circle at 2px 2px, white 1px, transparent 0)`, backgroundSize: '24px 24px' }} />
+
+      {/* Synchronicity Aura */}
+      <div className="absolute top-0 right-0 w-32 h-32 bg-[var(--brand)]/5 blur-[60px] pointer-events-none -translate-x-1/2 -translate-y-1/2 group-hover:bg-[var(--brand)]/10 transition-colors" />
 
       {/* Execution Scanline */}
       {isExecuting && (
@@ -40,8 +43,9 @@ export const BotCard: React.FC<BotCardProps> = ({ bot, index, onSelect, onUpdate
            <motion.div 
              animate={{ y: ["-100%", "200%"] }}
              transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-             className="w-full h-20 bg-gradient-to-b from-transparent via-[#FF2E00]/20 to-transparent"
+             className="w-full h-20 bg-gradient-to-b from-transparent via-[#FF2E00]/20 to-transparent shadow-[0_0_20px_0_rgba(255,46,0,0.4)]"
            />
+           <div className="absolute inset-0 bg-[#FF2E00]/5 animate-pulse" />
         </div>
       )}
       
@@ -49,13 +53,19 @@ export const BotCard: React.FC<BotCardProps> = ({ bot, index, onSelect, onUpdate
         <div className="flex items-center gap-3">
            <span className={cn(
              "mono-type text-[9px] bg-white text-black px-2 py-1 font-black uppercase border-2 border-black transition-all",
-             isExecuting ? "bg-[#FF2E00] text-white -translate-x-1 -translate-y-1 brutal-shadow-mini" : "group-hover:bg-[var(--brand)] group-hover:text-black group-hover:-translate-x-1 group-hover:-translate-y-1 group-hover:brutal-shadow-mini"
+             isExecuting ? "bg-[#FF2E00] text-white -translate-x-1 -translate-y-1 brutal-shadow-mini shadow-[4px_4px_0_0_#000]" : "group-hover:bg-[var(--brand)] group-hover:text-black group-hover:-translate-x-1 group-hover:-translate-y-1 group-hover:brutal-shadow-mini group-hover:shadow-[4px_4px_0_0_#000]"
            )}>
              NODE_{bot.type.slice(0, 4)}
            </span>
-           <span className="mono-type text-[10px] font-black text-white/20 group-hover:text-white/40 tabular-nums">
-             ID: {bot.id.slice(0, 6)}
-           </span>
+           <div className="flex flex-col">
+              <span className="mono-type text-[10px] font-black text-white/20 group-hover:text-white/40 tabular-nums leading-none">
+                {bot.id.slice(0, 8)}
+              </span>
+              <div className="flex items-center gap-1 mt-1">
+                 <div className="w-1 h-1 bg-white/10 rounded-full" />
+                 <span className="text-[6px] font-black text-white/10 uppercase tracking-widest">Active Link</span>
+              </div>
+           </div>
         </div>
         <div className="flex items-center gap-2">
            {bot.config?.winCount > 0 && (
@@ -64,13 +74,18 @@ export const BotCard: React.FC<BotCardProps> = ({ bot, index, onSelect, onUpdate
                  <span>{bot.config.winCount}</span>
               </div>
            )}
-           <div className={cn(
-             "w-3 h-3 border-2 border-black brutal-shadow-mini transition-all duration-300",
-             bot.status === "online" && "bg-[#D4FF00] scale-110",
-             bot.status === "offline" && "bg-white/10 opacity-50",
-             bot.status === "error" && "bg-[#FF2E00] animate-pulse",
-             bot.status === "auth-required" && "bg-[#FF00FF]"
-           )} />
+           <div className="relative">
+              <div className={cn(
+                "w-3 h-3 border-2 border-black brutal-shadow-mini transition-all duration-300",
+                bot.status === "online" && "bg-[#D4FF00] scale-110",
+                bot.status === "offline" && "bg-white/10 opacity-50",
+                bot.status === "error" && "bg-[#FF2E00] animate-pulse",
+                bot.status === "auth-required" && "bg-[#FF00FF]"
+              )} />
+              {bot.status === "online" && (
+                <div className="absolute inset-0 bg-[#D4FF00]/40 blur-sm animate-ping" />
+              )}
+           </div>
         </div>
       </div>
       

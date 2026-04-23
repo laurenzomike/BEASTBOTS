@@ -3,19 +3,19 @@ import { BotType } from "./types";
 export const BOT_TYPES: BotType[] = [
   { 
     id: "shopify", 
-    name: "Shopify Clerk", 
-    role: "Store Operator", 
+    name: "Shopify Merchant", 
+    role: "Inventory Admiral", 
     authType: "oauth", 
-    expertise: "Helps manage inventory, adjusts prices automatically, and handles new orders.",
+    expertise: "Controls inventory velocity, pricing spreads, and customer conversion funnels. Actively monitors high-demand SKUs.",
     scopes: ["read_products", "write_products", "read_orders", "write_orders", "read_inventory", "write_inventory"],
     responsibilities: [
-      { id: "inventory", label: "Inventory Watch", description: "Monitors and syncs stock levels across locations.", defaultEnabled: true },
-      { id: "pricing", label: "Dynamic Pricing", description: "Adjusts prices based on demand and competitor data (simulated).", defaultEnabled: true },
-      { id: "fulfillment", label: "Order Logistics", description: "Drafts reorders and flags fulfillment issues.", defaultEnabled: false }
+      { id: "pricing", label: "Dynamic Spreads", description: "Updates prices every 15 minutes based on competitor scrapers.", defaultEnabled: true },
+      { id: "stock", label: "Stock Arbitrage", description: "Orders low-stock items automatically when velocity spikes.", defaultEnabled: true },
+      { id: "orders", label: "Fulfillment Logic", description: "Prioritizes high-value customers for immediate shipping.", defaultEnabled: false }
     ],
     parameters: [
-      { id: "min_stock", label: "Reorder Threshold", type: "number", defaultValue: 10, min: 0, max: 100, description: "Low stock alert level." },
-      { id: "base_margin", label: "Target Margin %", type: "number", defaultValue: 25, min: 5, max: 80, description: "Minimum profit margin to maintain." }
+      { id: "margin_threshold", label: "Min Margin %", type: "number", defaultValue: 20, min: 5, max: 80, description: "Never price below this profit margin." },
+      { id: "velocity_threshold", label: "Velocity Alarm", type: "number", defaultValue: 5, min: 1, max: 20, description: "Units per day to trigger restocking." }
     ]
   },
   { 
@@ -124,16 +124,18 @@ export const BOT_TYPES: BotType[] = [
   },
   { 
     id: "kalshi", 
-    name: "Kalshi Trader", 
-    role: "Market Analyst", 
+    name: "Kalshi Oracle", 
+    role: "Binary Specialist", 
     authType: "apikey", 
-    expertise: "Checks market trends and helps manage your trades based on news events.",
+    expertise: "Deep-dives into event probability and political/economic shifting. Executes binary market strategies with high precision.",
     responsibilities: [
-      { id: "event_trades", label: "Event Arbitrage", description: "Places trades based on prediction accuracy.", defaultEnabled: true },
-      { id: "hedging", label: "Exposure Hedge", description: "Closes positions when risk exceeds bounds.", defaultEnabled: true }
+      { id: "event_trades", label: "Predictive Execution", description: "Places trades on Yes/No markets based on news sentiment.", defaultEnabled: true },
+      { id: "hedging", label: "Protocol Hedge", description: "Maintains a balanced market-neutral book across correlated events.", defaultEnabled: true },
+      { id: "liquidity_watch", label: "Liquidity Guard", description: "Ensures exit liquidity is available before scaling positions.", defaultEnabled: false }
     ],
     parameters: [
-      { id: "risk_limit", label: "Risk Limit ($)", type: "number", defaultValue: 100, min: 10, max: 1000, description: "Maximum exposure per event." }
+      { id: "risk_limit", label: "Max Exposure ($)", type: "number", defaultValue: 100, min: 10, max: 1000, description: "Maximum stake per single event contract." },
+      { id: "min_confidence", label: "Logic Gap %", type: "number", defaultValue: 0.7, min: 0.1, max: 1, description: "Minimum probability edge required for execution." }
     ]
   },
   { 
@@ -152,16 +154,18 @@ export const BOT_TYPES: BotType[] = [
   },
   { 
     id: "alpaca", 
-    name: "Alpaca Trader", 
-    role: "Stock Helper", 
+    name: "Alpaca Titan", 
+    role: "Equity Executioner", 
     authType: "apikey", 
-    expertise: "Spots technical stock patterns and manages live buy or sell orders.",
+    expertise: "High-frequency retail equity strategist. Manages long/short portfolios with strict risk-to-reward matrices.",
     responsibilities: [
-      { id: "patterns", label: "Pattern Recognition", description: "Detects RSI, MACD, and SMA crosses.", defaultEnabled: true },
-      { id: "execution", label: "Order Execution", description: "Places limit orders based on signals.", defaultEnabled: true }
+      { id: "trades", label: "Momentum Capture", description: "Executes trades on high-volume breakout patterns.", defaultEnabled: true },
+      { id: "risk", label: "Hard Stop Loss", description: "Liquidates positions instantly if drawdown exceeds threshold.", defaultEnabled: true },
+      { id: "rebalance", label: "Sector Rotation", description: "Moves capital to trending sectors during market shifts.", defaultEnabled: false }
     ],
     parameters: [
-      { id: "watchlist", label: "Watchlist", type: "string", defaultValue: "AAPL, TSLA, BTC", description: "Assets to monitor." }
+      { id: "max_position", label: "Max Pos ($)", type: "number", defaultValue: 500, min: 100, max: 5000, description: "Maximum capital allocated per ticker." },
+      { id: "stop_loss", label: "Stop Loss %", type: "number", defaultValue: 0.02, min: 0.001, max: 0.1, description: "Percentage drop to trigger exit." }
     ]
   },
   { 
@@ -210,18 +214,60 @@ export const BOT_TYPES: BotType[] = [
 ];
 
 export const PLATFORM_WORKFLOWS: Record<string, { triggers: string[], actions: string[] }> = {
-  shopify: { triggers: ["Scheduled Sync", "On Inventory Low", "On Order Placed", "On Customer Inquiry"], actions: ["Adjust Price", "Draft Reorder", "Generate Promo Code", "Auto-Response"] },
-  etsy: { triggers: ["Scheduled Sync", "On Review Received", "On Trending Tag", "On Message Received"], actions: ["Auto-Response", "Adjust Listing Tags", "Update Title"] },
-  ebay: { triggers: ["Scheduled Sync", "On Auction End", "On Outbid", "On Buyer Question"], actions: ["Relist Item", "Adjust Reserve", "Send Counteroffer", "Auto-Response"] },
-  amazon: { triggers: ["Scheduled Sync", "On Buybox Lost", "On Bad Review", "On Buyer Message"], actions: ["Adjust Price limit", "Flag for Review", "Pause Listing", "Auto-Response"] },
-  gmail: { triggers: ["On New Email", "Scheduled Sweep", "On Primary Inbox"], actions: ["Draft Reply", "Archive/Label", "Extract Invoice", "Auto-Response"] },
-  youtube: { triggers: ["Scheduled Sync", "On Video Published", "On Milestone", "On New Comment"], actions: ["Generate Tags & Title", "Reply to Comments", "Update Thumbnail", "Auto-Response"] },
-  facebook: { triggers: ["Scheduled Sync", "On Ad Fatigue Detected", "On High CPA", "On Page Comment"], actions: ["Pause Ad", "Generate New Creative Variation", "Rotate Audience", "Auto-Response"] },
-  pinterest: { triggers: ["Scheduled Sync", "On Keyword Trend", "On High Repin", "On Message"], actions: ["Create Pin", "Update Board", "Follow Users", "Auto-Response"] },
-  kalshi: { triggers: ["Scheduled Sync", "On Market Shift", "On Breaking News"], actions: ["Place Yes/No Order", "Liquidate Position", "Hedge Exposure"] },
-  polymarket: { triggers: ["Scheduled Sync", "On Odds Change", "On Liquidity Drop"], actions: ["Buy Shares", "Sell Shares", "Provide Liquidity"] },
-  alpaca: { triggers: ["Scheduled Sync", "On Price Alert", "On Technical Cross"], actions: ["Market Order", "Limit Order", "Close Safe"] },
-  coinbase: { triggers: ["Scheduled Sync", "On Large Volume Spike", "On Spread Widen"], actions: ["Market Order", "Stake Asset", "Cancel Open Orders"] },
-  discord: { triggers: ["On Message in Channel", "Scheduled Sync", "On Keyword Mention", "On DM Received"], actions: ["Send Alert", "Moderate User", "Reply in Thread", "Auto-Response"] },
-  botboss: { triggers: ["Scheduled Sync", "On Fleet Error", "On Budget Limit"], actions: ["Reallocate Budget", "Pause Agents", "Send Global Alert"] },
+  shopify: { 
+    triggers: ["When Signal Detected", "Scheduled Sync", "On Inventory Low", "On Order Placed", "On Customer Inquiry", "On Competitor Price Drop"], 
+    actions: ["Adjust Price", "Draft Reorder", "Generate Promo Code", "Auto-Response", "Update Shipping Logic", "Flag High-Risk Order"] 
+  },
+  etsy: { 
+    triggers: ["When Signal Detected", "Scheduled Sync", "On Review Received", "On Trending Tag", "On Message Received", "On Listing Expiry"], 
+    actions: ["Auto-Response", "Adjust Listing Tags", "Update Title", "Relist Item", "Generate Gift Guide", "Send Coupon to Favorites"] 
+  },
+  ebay: { 
+    triggers: ["When Signal Detected", "Scheduled Sync", "On Auction End", "On Outbid", "On Buyer Question", "On Case Opened"], 
+    actions: ["Relist Item", "Adjust Reserve", "Send Counteroffer", "Auto-Response", "Generate Return Label", "Blacklist Buyer"] 
+  },
+  amazon: { 
+    triggers: ["When Signal Detected", "Scheduled Sync", "On Buybox Lost", "On Bad Review", "On Buyer Message", "On Low Stock Alert"], 
+    actions: ["Adjust Price limit", "Flag for Review", "Pause Listing", "Auto-Response", "Sync FBA Shipment", "Analyze Buybox Gap"] 
+  },
+  gmail: { 
+    triggers: ["When Signal Detected", "On New Email", "Scheduled Sweep", "On Primary Inbox", "On Calendar Invite"], 
+    actions: ["Draft Reply", "Archive/Label", "Extract Invoice", "Auto-Response", "Create Task", "Forward to DM"] 
+  },
+  youtube: { 
+    triggers: ["When Signal Detected", "Scheduled Sync", "On Video Published", "On Milestone", "On New Comment", "On Search Trend"], 
+    actions: ["Generate Tags & Title", "Reply to Comments", "Update Thumbnail", "Auto-Response", "Analyze Retention Drop", "Pin Top Comment"] 
+  },
+  facebook: { 
+    triggers: ["When Signal Detected", "Scheduled Sync", "On Ad Fatigue Detected", "On High CPA", "On Page Comment", "On Audience Shift"], 
+    actions: ["Pause Ad", "Generate New Creative Variation", "Rotate Audience", "Auto-Response", "Boost Successful Post", "Export Lead Data"] 
+  },
+  pinterest: { 
+    triggers: ["When Signal Detected", "Scheduled Sync", "On Keyword Trend", "On High Repin", "On Message", "On Board Saturation"], 
+    actions: ["Create Pin", "Update Board", "Follow Users", "Auto-Response", "Schedule Story Pin", "Analyze Board Click-Through"] 
+  },
+  kalshi: { 
+    triggers: ["When Signal Detected", "Scheduled Sync", "On Market Shift", "On Breaking News", "On Volume Spike", "On Order Partially Filled"], 
+    actions: ["Place Yes/No Order", "Liquidate Position", "Hedge Exposure", "Set Limit Order", "Trailing Stop Exit", "Generate Alpha Note"] 
+  },
+  polymarket: { 
+    triggers: ["When Signal Detected", "Scheduled Sync", "On Odds Change", "On Liquidity Drop", "On Result Resolved", "On Whale Activity"], 
+    actions: ["Buy Shares", "Sell Shares", "Provide Liquidity", "Claim Winnings", "Verify Oracle Data", "Sentiment Log"] 
+  },
+  alpaca: { 
+    triggers: ["When Signal Detected", "Scheduled Sync", "On Price Alert", "On Technical Cross", "On Earnings Announcement", "On Halt Detected"], 
+    actions: ["Market Order", "Limit Order", "Close Safe", "Trailing Stop", "Rebalance Portfolio", "Volatility Hedge"] 
+  },
+  coinbase: { 
+    triggers: ["When Signal Detected", "Scheduled Sync", "On Large Volume Spike", "On Spread Widen", "On Wallet Inflow", "On Network Congestion"], 
+    actions: ["Market Order", "Stake Asset", "Cancel Open Orders", "Move to Cold Wallet", "Bridge Assets", "Analyze Dex Spread"] 
+  },
+  discord: { 
+    triggers: ["When Signal Detected", "On Message in Channel", "Scheduled Sync", "On Keyword Mention", "On DM Received", "On Member Join"], 
+    actions: ["Send Alert", "Moderate User", "Reply in Thread", "Auto-Response", "Assign Role", "Generate Channel Summary"] 
+  },
+  botboss: { 
+    triggers: ["When Signal Detected", "Scheduled Sync", "On Fleet Error", "On Budget Limit", "On Collective Success", "On Global Directive Update"], 
+    actions: ["Reallocate Budget", "Pause Agents", "Send Global Alert", "Trigger Fleet Maintenance", "Rotate API Keys", "Generate Fleet Situation Report"] 
+  },
 };

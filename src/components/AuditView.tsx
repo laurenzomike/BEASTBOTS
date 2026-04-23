@@ -30,6 +30,8 @@ export const AuditView: React.FC<AuditViewProps> = ({ bots, activities }) => {
     ratio: botStats[b.type] ? ((b.config?.winCount || 0) / botStats[b.type] * 100).toFixed(1) : 0
   })).sort((a, b) => Number(b.ratio) - Number(a.ratio));
 
+  const intelLogs = activities.filter(a => a.botId === 'fleet-intelligence');
+
   const chartData = Object.entries(botStats).map(([name, value]) => ({ name, value }));
 
   return (
@@ -84,78 +86,117 @@ export const AuditView: React.FC<AuditViewProps> = ({ bots, activities }) => {
         </div>
       </div>
       
-      <div className="bg-[#0A0A0A] border-[4px] border-white p-8 brutal-shadow">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 mb-8">
-           <div className="flex items-center gap-4">
-              <BarChart3 className="w-8 h-8 text-[var(--brand)]" />
-              <h3 className="font-display text-2xl font-black uppercase tracking-tighter text-white">Performance Analytics</h3>
-           </div>
-           <div className="flex bg-white/5 border-2 border-white/10 p-1">
-              <button 
-                onClick={() => setChartMode('activity')}
-                className={`px-4 py-2 text-[9px] font-black uppercase transition-all ${chartMode === 'activity' ? 'bg-[var(--brand)] text-black' : 'text-white/40 hover:text-white'}`}
-              >
-                Log Volume
-              </button>
-              <button 
-                onClick={() => setChartMode('efficiency')}
-                className={`px-4 py-2 text-[9px] font-black uppercase transition-all ${chartMode === 'efficiency' ? 'bg-[var(--brand)] text-black' : 'text-white/40 hover:text-white'}`}
-              >
-                Win Efficiency
-              </button>
-           </div>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        <div className="lg:col-span-12 xl:col-span-8 bg-[#0A0A0A] border-[4px] border-white p-8 brutal-shadow">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 mb-8">
+             <div className="flex items-center gap-4">
+                <BarChart3 className="w-8 h-8 text-[var(--brand)]" />
+                <h3 className="font-display text-2xl font-black uppercase tracking-tighter text-white">Performance Analytics</h3>
+             </div>
+             <div className="flex bg-white/5 border-2 border-white/10 p-1">
+                <button 
+                  onClick={() => setChartMode('activity')}
+                  className={`px-4 py-2 text-[9px] font-black uppercase transition-all ${chartMode === 'activity' ? 'bg-[var(--brand)] text-black' : 'text-white/40 hover:text-white'}`}
+                >
+                  Log Volume
+                </button>
+                <button 
+                  onClick={() => setChartMode('efficiency')}
+                  className={`px-4 py-2 text-[9px] font-black uppercase transition-all ${chartMode === 'efficiency' ? 'bg-[var(--brand)] text-black' : 'text-white/40 hover:text-white'}`}
+                >
+                  Win Efficiency
+                </button>
+             </div>
+          </div>
+
+          <div className="h-[400px] w-full">
+             <ResponsiveContainer width="100%" height="100%">
+               {chartMode === 'activity' ? (
+                  <BarChart data={chartData}>
+                    <XAxis 
+                      dataKey="name" 
+                      stroke="#666" 
+                      fontSize={10} 
+                      tickFormatter={(val) => val.toUpperCase()}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <YAxis stroke="#666" fontSize={10} axisLine={false} tickLine={false} />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: '#000', border: '2px solid #D4FF00', borderRadius: '0', color: '#fff' }}
+                      itemStyle={{ color: '#D4FF00', fontSize: '12px', fontWeight: 'bold' }}
+                      cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+                    />
+                    <Bar dataKey="value" fill="#D4FF00">
+                        {chartData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={index % 2 === 0 ? '#D4FF00' : '#FF2E00'} />
+                        ))}
+                    </Bar>
+                  </BarChart>
+               ) : (
+                  <BarChart data={efficiencyData} layout="vertical">
+                    <XAxis type="number" stroke="#666" fontSize={10} axisLine={false} tickLine={false} />
+                    <YAxis 
+                      dataKey="name" 
+                      type="category" 
+                      stroke="#666" 
+                      fontSize={10} 
+                      tickFormatter={(val) => val.toUpperCase()} 
+                      axisLine={false}
+                      tickLine={false}
+                      width={80}
+                    />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: '#000', border: '2px solid #D4FF00', borderRadius: '0', color: '#fff' }}
+                      itemStyle={{ color: '#D4FF00', fontSize: '12px', fontWeight: 'bold' }}
+                      cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+                    />
+                    <Bar dataKey="ratio" name="Efficiency %" fill="#00D1FF" radius={[0, 4, 4, 0]}>
+                      {efficiencyData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={Number(entry.ratio) > 5 ? '#D4FF00' : '#444'} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+               )}
+             </ResponsiveContainer>
+          </div>
         </div>
 
-        <div className="h-[400px] w-full">
-           <ResponsiveContainer width="100%" height="100%">
-             {chartMode === 'activity' ? (
-                <BarChart data={chartData}>
-                  <XAxis 
-                    dataKey="name" 
-                    stroke="#666" 
-                    fontSize={10} 
-                    tickFormatter={(val) => val.toUpperCase()}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <YAxis stroke="#666" fontSize={10} axisLine={false} tickLine={false} />
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: '#000', border: '2px solid #D4FF00', borderRadius: '0', color: '#fff' }}
-                    itemStyle={{ color: '#D4FF00', fontSize: '12px', fontWeight: 'bold' }}
-                    cursor={{ fill: 'rgba(255,255,255,0.05)' }}
-                  />
-                  <Bar dataKey="value" fill="#D4FF00">
-                      {chartData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={index % 2 === 0 ? '#D4FF00' : '#FF2E00'} />
-                      ))}
-                  </Bar>
-                </BarChart>
-             ) : (
-                <BarChart data={efficiencyData} layout="vertical">
-                  <XAxis type="number" stroke="#666" fontSize={10} axisLine={false} tickLine={false} />
-                  <YAxis 
-                    dataKey="name" 
-                    type="category" 
-                    stroke="#666" 
-                    fontSize={10} 
-                    tickFormatter={(val) => val.toUpperCase()} 
-                    axisLine={false}
-                    tickLine={false}
-                    width={80}
-                  />
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: '#000', border: '2px solid #D4FF00', borderRadius: '0', color: '#fff' }}
-                    itemStyle={{ color: '#D4FF00', fontSize: '12px', fontWeight: 'bold' }}
-                    cursor={{ fill: 'rgba(255,255,255,0.05)' }}
-                  />
-                  <Bar dataKey="ratio" name="Efficiency %" fill="#00D1FF" radius={[0, 4, 4, 0]}>
-                    {efficiencyData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={Number(entry.ratio) > 5 ? '#D4FF00' : '#444'} />
-                    ))}
-                  </Bar>
-                </BarChart>
-             )}
-           </ResponsiveContainer>
+        <div className="lg:col-span-12 xl:col-span-4 bg-[#FF2E00]/10 border-[4px] border-[#FF2E00] p-8 brutal-shadow overflow-hidden relative group">
+           <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+              <Zap className="w-48 h-48 animate-pulse" />
+           </div>
+           <div className="relative z-10 h-full flex flex-col">
+              <div className="flex items-center gap-3 mb-6">
+                 <div className="w-2 h-2 bg-[#FF2E00] animate-ping" />
+                 <h3 className="font-display text-2xl font-black uppercase text-[#FF2E00]">Strategic Evolution</h3>
+              </div>
+              <p className="mono-type text-[9px] font-black uppercase text-[#FF2E00] mb-8 leading-tight">
+                Collective intelligence broadcasted via fleet-wide neural links. Patterns detected by one are shared with all.
+              </p>
+              
+              <div className="flex-grow space-y-4 overflow-y-auto max-h-[350px] pr-2 custom-scrollbar">
+                {intelLogs.length === 0 ? (
+                  <div className="border border-[#FF2E00]/20 p-6 text-center opacity-40">
+                     <span className="mono-type text-[8px] uppercase font-black italic">No strategic updates detected yet.</span>
+                  </div>
+                ) : (
+                  intelLogs.map((log, i) => (
+                    <div key={i} className="border-l-2 border-[#FF2E00] bg-black/40 p-4 hover:bg-[#FF2E00]/20 transition-colors">
+                       <span className="block mono-type text-[8px] uppercase text-[#FF2E00] opacity-60 mb-2">{log.timestamp?.toDate().toLocaleTimeString()}</span>
+                       <p className="text-[10px] text-white/90 font-bold leading-relaxed">{log.text}</p>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="mt-8 pt-6 border-t border-[#FF2E00]/20">
+                 <div className="flex items-center justify-between">
+                    <span className="text-[8px] font-black uppercase text-[#FF2E00]">Synaptic Sync Status</span>
+                    <span className="text-[10px] font-mono text-white font-black uppercase bg-[#FF2E00] px-2">ACTIVE</span>
+                 </div>
+              </div>
+           </div>
         </div>
       </div>
 

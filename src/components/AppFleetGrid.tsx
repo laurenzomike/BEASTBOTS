@@ -49,7 +49,7 @@ export const AppFleetGrid: React.FC<AppFleetGridProps> = ({
       className="flex flex-col h-full"
     >
       {/* Fleet Summary Row (Desktop Only) */}
-      <div className="hidden lg:grid grid-cols-4 gap-6 px-12 pt-12">
+      <div className="hidden lg:grid grid-cols-2 xl:grid-cols-4 gap-6 px-12 pt-12">
          {[
            { label: "Total Fleet", value: bots.length, color: "bg-white", detail: "Defined Protocols" },
            { label: "Active Cycles", value: bots.filter(b => b.status === 'online').length, color: "bg-[#D4FF00]", detail: "Online Units" },
@@ -128,7 +128,7 @@ export const AppFleetGrid: React.FC<AppFleetGridProps> = ({
             }}
             initial="hidden"
             animate="show"
-            className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 md:gap-8"
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 md:gap-8"
           >
             {activeBots.map((bot, i) => {
               const lastLog = globalActivities.find(a => a.botId === bot.id)?.text || "";

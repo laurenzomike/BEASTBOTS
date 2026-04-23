@@ -15,7 +15,9 @@ interface AppSidebarProps {
   handleGlobalDirectiveSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
   persona: 'aggressive' | 'passive' | 'balanced';
   setPersona: (p: 'aggressive' | 'passive' | 'balanced') => void;
+  fleetIntelligence?: string;
   bots: any[];
+  className?: string;
 }
 
 export const AppSidebar: React.FC<AppSidebarProps> = ({
@@ -30,7 +32,9 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
   handleGlobalDirectiveSubmit,
   persona,
   setPersona,
-  bots
+  fleetIntelligence,
+  bots,
+  className
 }) => {
   const coreLoad = bots.filter(b => b.status === 'online').length * 15 + 5;
   const memSync = bots.some(b => b.status === 'online') ? "Active" : "Idle";
@@ -40,7 +44,8 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
   return (
     <aside className={cn(
         "border-r-[4px] border-white p-8 bg-[#0A0A0A] flex-col gap-12 relative",
-        isMobileMenuOpen ? "flex fixed inset-0 z-50 w-full" : "hidden lg:flex"
+        isMobileMenuOpen ? "flex fixed inset-0 z-50 w-full" : "hidden lg:flex",
+        className
     )}>
        <button onClick={() => setIsMobileMenuOpen(false)} className="lg:hidden absolute top-8 right-8 text-white">
          <X className="w-8 h-8" />
@@ -106,6 +111,26 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
               <span>95% Reliable</span>
             </div>
           </div>
+
+          {fleetIntelligence && (
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="p-5 bg-[#FF2E00] border-[4px] border-black brutal-shadow text-white relative group overflow-hidden"
+            >
+               <div className="flex items-center gap-2 mb-3">
+                  <ShieldAlert className="w-5 h-5 animate-pulse" />
+                  <span className="text-[10px] font-black uppercase tracking-tighter">Fleet Neural Sync</span>
+               </div>
+               <p className="font-mono text-[11px] font-black leading-tight uppercase italic relative z-10 selection:bg-white selection:text-[#FF2E00]">{fleetIntelligence}</p>
+               <div className="absolute -bottom-4 -right-4 p-2 opacity-5 rotate-12">
+                  <Cpu className="w-20 h-20" />
+               </div>
+               <div className="absolute top-0 right-0 p-2 opacity-20">
+                  <span className="text-[8px] font-mono">INTEL_NODE_SHARING</span>
+               </div>
+            </motion.div>
+          )}
        </div>
 
        <div className="hidden lg:block space-y-4">
