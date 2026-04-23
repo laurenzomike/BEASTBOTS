@@ -5,7 +5,7 @@ import { collection, onSnapshot, doc, setDoc, getDocs, addDoc, query, where, ser
 import { 
   Key, LogOut, Settings, RefreshCw, Layers, ShieldAlert, Cpu, 
   TrendingUp, Zap, Target, ChevronRight, Terminal, ChevronUp,
-  Square, Play, Bell
+  Square, Play, Bell, X
 } from "lucide-react";
 import { cn } from "./lib/utils";
 import { AgentPanel } from "./components/AgentPanel";
@@ -14,6 +14,7 @@ import { BotCard } from "./components/BotCard";
 import { AuditView } from "./components/AuditView";
 import { GoogleGenAI } from "@google/genai";
 import { handleBotErrorTransition } from "./lib/errorUtils";
+import { getRelevantMemories, saveMemory } from "./services/memoryService";
 import { Bot, Activity } from "./types";
 import { BOT_TYPES } from "./constants";
 import { motion, AnimatePresence } from "motion/react";
@@ -42,6 +43,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<Bot["status"] | "all">("all");
   const [executingBots, setExecutingBots] = useState<Set<string>>(new Set());
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
   const coordinatorRef = useRef<NodeJS.Timeout | null>(null);
   const lastRunTracker = useRef<Record<string, any>>({});
@@ -149,9 +151,9 @@ export default function App() {
       const botConfig = bot.config || {};
       const typeDef = BOT_TYPES.find(t => t.id === bot.type);
 
-      const memoryRef = collection(db, "users", user!.uid, "bots", bot.id, "memories");
-      const memorySnap = await getDocs(query(memoryRef, orderBy("updatedAt", "desc"), limit(1)));
-      const memories: string[] = memorySnap.empty ? [] : (memorySnap.docs[0].data().memories || []);
+      // Memory Service Integration - Fetching top 20 recent memories
+      const memoryDocs = await getRelevantMemories(user!.uid, bot.id, 20);
+      const memories = memoryDocs.map(m => m.fact);
 
       const filesRef = collection(db, "users", user!.uid, "bots", bot.id, "files");
       const filesSnap = await getDocs(query(filesRef, orderBy("createdAt", "desc")));
@@ -206,18 +208,7 @@ Keep it to 1-2 authoritative sentences.`;
       // Memory Extraction
       const memoryMatch = output.match(/\[MEMORY:\s*(.*?)\]/);
       if (memoryMatch && memoryMatch[1]) {
-        const newFact = memoryMatch[1].trim();
-        const mRef = collection(db, "users", user!.uid, "bots", bot.id, "memories");
-        const mSnap = await getDocs(query(mRef, limit(1)));
-        if (mSnap.empty) {
-          await addDoc(mRef, { botId: bot.id, userId: user!.uid, memories: [newFact], updatedAt: serverTimestamp() });
-        } else {
-          const docRef = doc(db, "users", user!.uid, "bots", bot.id, "memories", mSnap.docs[0].id);
-          const currentMemories = mSnap.docs[0].data().memories || [];
-          if (!currentMemories.includes(newFact)) {
-            await setDoc(docRef, { memories: [...currentMemories, newFact].slice(-20), updatedAt: serverTimestamp() }, { merge: true });
-          }
-        }
+        await saveMemory(user!.uid, bot.id, memoryMatch[1].trim());
       }
 
       // Achievement (Objective) Extraction
@@ -384,11 +375,12 @@ Keep it to 1-2 authoritative sentences.`;
                   {bots.reduce((acc, curr) => acc + (curr.config?.winCount || 0), 0)} Objectives Met
                </span>
             </div>
-            <h1 className="display-type text-7xl md:text-[8vw] font-black uppercase tracking-tighter leading-none text-black">Bot Boss</h1>
+            <h1 className="display-type text-4xl sm:text-5xl md:text-[8vw] font-black uppercase tracking-tighter leading-none text-black">Bot Boss</h1>
           </div>
           <div className="mt-8 md:mt-0 flex flex-col items-end gap-2">
              <span className="mono-type text-xs font-black uppercase bg-black text-white px-3 py-1">User: {user.email?.split('@')[0]}</span>
              <div className="flex gap-4">
+                <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="lg:hidden p-2 border-4 border-black"><Layers className="w-8 h-8" /></button>
                 <button title="Settings" className="p-2 border-4 border-black hover:bg-black hover:text-white transition-all"><Settings className="w-8 h-8" /></button>
                 <button onClick={logout} title="Logout" className="p-2 border-4 border-black text-red-600 hover:bg-red-600 hover:text-white transition-all"><LogOut className="w-8 h-8" /></button>
              </div>
@@ -397,15 +389,19 @@ Keep it to 1-2 authoritative sentences.`;
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 min-h-screen">
-        <aside className="lg:col-span-1 border-r-[4px] border-white p-8 bg-[#0A0A0A] flex flex-col gap-12 relative">
-           <nav className="flex flex-col gap-4">
+        <aside className={cn(
+            "border-r-[4px] border-white p-8 bg-[#0A0A0A] flex-col gap-12 relative",
+            isMobileMenuOpen ? "flex fixed inset-0 z-50 w-full" : "hidden lg:flex"
+        )}>
+           <button onClick={() => setIsMobileMenuOpen(false)} className="lg:hidden absolute top-8 right-8 text-white"><X className="w-8 h-8" /></button>
+           <nav className="flex flex-col gap-4 mt-12 lg:mt-0">
               {[
                 { id: 'fleet', label: 'Active Agents', icon: Layers },
                 { id: 'audit', label: 'Universal Protocol', icon: ShieldAlert }
               ].map(v => (
                 <button 
                   key={v.id}
-                  onClick={() => setCurrentView(v.id as any)}
+                  onClick={() => { setCurrentView(v.id as any); setIsMobileMenuOpen(false); }}
                   className={cn(
                     "w-full p-4 flex items-center gap-4 border-[4px] font-black uppercase text-sm transition-all brutal-shadow",
                     currentView === v.id ? "bg-[var(--brand)] text-black border-black -translate-y-1 translate-x-1 shadow-none" : "bg-black text-white border-white hover:border-[var(--brand)]"
@@ -460,7 +456,7 @@ Keep it to 1-2 authoritative sentences.`;
               >
                 <AuditView bots={bots} activities={globalActivities} />
               </motion.div>
-            ) : selectedBotId ? (
+            ) : selectedBot ? (
               <motion.div 
                 key="onboarding-or-panel"
                 initial={{ opacity: 0, y: 20 }}
@@ -470,7 +466,7 @@ Keep it to 1-2 authoritative sentences.`;
                 className="min-h-screen"
               >
                 {(() => {
-                  const bot = bots.find(b => b.id === selectedBotId);
+                  const bot = bots.find(b => b.id === selectedBot.id);
                   if (!bot) return null;
                   if (!bot.config?.isInitialized) {
                     return (
@@ -487,7 +483,7 @@ Keep it to 1-2 authoritative sentences.`;
                     <AgentPanel 
                       bot={bot}
                       onUpdateBot={() => {}}
-                      onClose={() => setSelectedBotId(null)}
+                      onClose={() => setSelectedBot(null)}
                     />
                   );
                 })()}
@@ -546,7 +542,7 @@ Keep it to 1-2 authoritative sentences.`;
                    </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8 p-8 lg:p-12">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-8 p-4 lg:p-12">
                   {filteredBots.length === 0 ? (
                     <div className="col-span-full py-20 text-center opacity-30 animate-pulse text-4xl font-black uppercase border-4 border-dashed border-white/10">No agents match criteria.</div>
                   ) : (
@@ -571,8 +567,8 @@ Keep it to 1-2 authoritative sentences.`;
 
       {/* Terminal Toggle */}
       {!showTerminal && (
-         <button onClick={() => setShowTerminal(true)} className="fixed bottom-8 left-8 z-30 p-4 bg-black border-[4px] border-white text-white hover:bg-[var(--brand)] hover:text-black transition-colors brutal-shadow">
-            <Terminal className="w-8 h-8" />
+         <button onClick={() => setShowTerminal(true)} className="fixed bottom-4 right-4 sm:bottom-8 sm:left-8 z-30 p-3 sm:p-4 bg-black border-[4px] border-white text-white hover:bg-[var(--brand)] hover:text-black transition-colors brutal-shadow">
+            <Terminal className="w-6 h-6 sm:w-8 sm:h-8" />
          </button>
       )}
 
@@ -582,9 +578,9 @@ Keep it to 1-2 authoritative sentences.`;
             initial={{ y: 500 }}
             animate={{ y: 0 }}
             exit={{ y: 500 }}
-            className="fixed bottom-8 left-8 right-8 lg:left-auto lg:right-8 lg:w-[600px] z-[50]"
+            className="fixed bottom-0 left-0 right-0 sm:bottom-8 sm:left-8 sm:right-8 lg:left-auto lg:right-8 lg:w-[600px] z-[50]"
           >
-             <div className="bg-[#0A0A0A] border-[4px] border-white brutal-shadow flex flex-col h-[400px]">
+             <div className="bg-[#0A0A0A] border-t-4 sm:border-[4px] border-white brutal-shadow flex flex-col h-[300px] sm:h-[400px]">
                 <div className="p-4 border-b-2 border-white flex justify-between items-center bg-black">
                    <div className="flex items-center gap-3"><Terminal className="w-5 h-5 text-[var(--brand)]" /><span className="text-[10px] font-black uppercase text-white">Live Activity Log</span></div>
                    <button onClick={() => setShowTerminal(false)} className="text-white hover:text-[var(--brand)]"><ChevronUp className="w-5 h-5 rotate-180" /></button>

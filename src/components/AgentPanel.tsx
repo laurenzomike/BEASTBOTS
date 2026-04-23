@@ -1,4 +1,4 @@
-import { X, Play, Loader2, Gauge, Power, Plus, Trash2, Save, ExternalLink, CheckCircle, AlertCircle, TrendingUp, Sparkles, Calendar, Clock, Database, FileText, Brain, Upload, Zap, Lightbulb, Trophy } from "lucide-react";
+import { X, Play, Loader2, Gauge, Power, Plus, Trash2, Save, ExternalLink, CheckCircle, AlertCircle, TrendingUp, Sparkles, Calendar, Clock, Database, FileText, Brain, Upload, Zap, Lightbulb, Trophy, ChevronDown, ChevronUp } from "lucide-react";
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { doc, setDoc, serverTimestamp, collection, addDoc, query, where, onSnapshot, limit, orderBy, getDocs, deleteDoc } from "firebase/firestore";
@@ -6,6 +6,7 @@ import { db, handleFirestoreError, auth } from "../lib/firebase";
 import { cn } from "../lib/utils";
 import { GoogleGenAI } from "@google/genai";
 import { BOT_TYPES, PLATFORM_WORKFLOWS } from "../constants";
+import { BEHAVIORAL_TEMPLATES } from "../constants/prompts";
 import { Bot } from "../types";
 import { handleBotErrorTransition } from "../lib/errorUtils";
 import { suggestWorkflows } from "../services/suggestionService";
@@ -342,6 +343,25 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
                 </div>
               </div>
 
+              <div className="space-y-4">
+                <label className="mono-type text-[10px] font-black uppercase text-[#D4FF00]">System Template Browser</label>
+                <div className="space-y-2">
+                  {BEHAVIORAL_TEMPLATES.map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => setDoc(doc(db, "users", auth.currentUser!.uid, "bots", bot.id), { 
+                        config: { ...bot.config, systemDirective: t.prompt }, 
+                        updatedAt: serverTimestamp() 
+                      }, { merge: true })}
+                      className="w-full text-left p-4 bg-white border-2 border-black hover:bg-[#D4FF00] transition-colors group"
+                    >
+                      <div className="font-sans font-black uppercase text-sm">{t.name}</div>
+                      <div className="font-mono text-[9px] opacity-70 mt-1">{t.description}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="space-y-2">
                 <label className="mono-type text-[10px] font-black uppercase">Operation Personality & Behavior Logic</label>
                 <textarea 
@@ -372,12 +392,15 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
                   </select>
                 </div>
                 <div className="space-y-2">
-                  <label className="mono-type text-[10px] font-black uppercase">Success Criteria (Winning Condition)</label>
+                  <label className="mono-type text-[10px] font-black uppercase">Refresh Interval (Sec)</label>
                   <input 
-                    className="w-full bg-black text-[#D4FF00] border-[4px] border-black p-3 font-mono font-bold text-xs brutal-shadow outline-none placeholder:text-white/30"
-                    placeholder="e.g. ROI > 5%, Resolved Support Ticket"
-                    defaultValue={bot.config?.winCondition || ""}
-                    onBlur={(e) => setDoc(doc(db, "users", auth.currentUser!.uid, "bots", bot.id), { config: { ...bot.config, winCondition: e.target.value }, updatedAt: serverTimestamp() }, { merge: true })}
+                    type="number"
+                    min="5"
+                    max="300"
+                    className="w-full bg-white border-[4px] border-black p-3 font-mono font-bold text-xs brutal-shadow outline-none"
+                    placeholder="e.g. 30"
+                    defaultValue={bot.config?.refreshInterval || 30}
+                    onBlur={(e) => setDoc(doc(db, "users", auth.currentUser!.uid, "bots", bot.id), { config: { ...bot.config, refreshInterval: parseInt(e.target.value) || 30 }, updatedAt: serverTimestamp() }, { merge: true })}
                   />
                 </div>
               </div>

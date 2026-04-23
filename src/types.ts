@@ -33,6 +33,14 @@ export interface Activity {
   type?: 'action' | 'analysis' | 'error';
 }
 
+export interface Memory {
+  id: string;
+  botId: string;
+  fact: string;
+  sourceLogId?: string;
+  createdAt: any;
+}
+
 export interface BotType {
   id: string;
   name: string;
