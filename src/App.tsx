@@ -244,8 +244,8 @@ Keep it to 1-2 authoritative sentences.`;
         type: output.startsWith('[ACTION]') ? 'action' : 'analysis'
       });
 
-    } catch (err) {
-      console.error(`AI Error for ${bot.id}:`, err);
+    } catch (err: any) {
+      console.error(`AI Error for ${bot.id}:`, err.message || err);
     } finally {
       setExecutingBots(prev => {
         const next = new Set(prev);

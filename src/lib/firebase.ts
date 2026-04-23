@@ -12,16 +12,16 @@ const provider = new GoogleAuthProvider();
 export const login = async () => {
   try {
     await signInWithPopup(auth, provider);
-  } catch (error) {
-    console.error("Login failed:", error);
+  } catch (error: any) {
+    console.error("Login failed:", error.message || error);
   }
 };
 
 export const logout = async () => {
   try {
     await signOut(auth);
-  } catch (error) {
-    console.error("Logout failed:", error);
+  } catch (error: any) {
+    console.error("Logout failed:", error.message || error);
   }
 };
 

@@ -185,8 +185,8 @@ app.get(["/api/oauth/:provider/callback", "/api/oauth/:provider/callback/"], asy
         </body>
       </html>
     `);
-  } catch (err) {
-    console.error("Token exchange failed:", err);
+  } catch (err: any) {
+    console.error("Token exchange failed:", err.message || err);
     res.status(500).send("Token exchange failed.");
   }
 });
@@ -771,7 +771,7 @@ app.post("/api/execute/:botType", async (req, res) => {
     res.json({ success: true, executed: true, data: executionResult });
 
   } catch (err: any) {
-    console.error(`Live execution failed for ${botType}:`, err);
+    console.error(`Live execution failed for ${botType}:`, err.message || err);
     res.status(500).json({ error: "Execution failed", details: err.message });
   }
 });

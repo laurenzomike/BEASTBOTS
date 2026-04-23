@@ -32,8 +32,8 @@ export async function suggestWorkflows(botType: string, userGoal: string) {
 
     const parsed = JSON.parse(result.text || "[]");
     return parsed;
-  } catch (e) {
-    console.error("Suggestion error:", e);
+  } catch (e: any) {
+    console.error("Suggestion error:", e.message || e);
     return [];
   }
 }
