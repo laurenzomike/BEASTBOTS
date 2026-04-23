@@ -472,6 +472,8 @@ app.post("/api/execute/:botType", async (req, res) => {
     return res.status(400).json({ error: "UID and actionIntent are required" });
   }
 
+  const lowerIntent = actionIntent.toLowerCase();
+
   try {
     // 1. Fetch user's secured keys from Firestore
     const botDoc = await db.collection("users").doc(String(uid)).collection("bots").doc(botType).get();
@@ -495,14 +497,14 @@ app.post("/api/execute/:botType", async (req, res) => {
       const token = config.tokens?.accessToken;
       if (!token) throw new Error("Missing Shopify Access Token");
       
-      if (actionIntent.toLowerCase().includes("inventory") || actionIntent.toLowerCase().includes("restock")) {
+      if (lowerIntent.includes("inventory") || lowerIntent.includes("restock")) {
         executionResult = { 
           platform: "Shopify", 
           action: "Inventory Sync", 
           details: "Flagged 12 items for restock. Updated stock levels across 4 variants.",
           status: "Success" 
         };
-      } else if (actionIntent.toLowerCase().includes("discount") || actionIntent.toLowerCase().includes("coupon")) {
+      } else if (lowerIntent.includes("discount") || lowerIntent.includes("coupon")) {
         executionResult = { 
           platform: "Shopify", 
           action: "Dynamic Discounting", 
@@ -523,14 +525,14 @@ app.post("/api/execute/:botType", async (req, res) => {
       const apiSecret = config.apiSecret;
       if (!apiKey || !apiSecret) throw new Error("Missing Alpaca API Keys");
       
-      if (actionIntent.toLowerCase().includes("rebalance") || actionIntent.toLowerCase().includes("portfolio")) {
+      if (lowerIntent.includes("rebalance") || lowerIntent.includes("portfolio")) {
         executionResult = { 
           platform: "Alpaca", 
           action: "Portfolio Rebalancing", 
           details: "Selling over-weighted tech positions. Increasing exposure to commodities based on macro drift.",
           status: "Executing" 
         };
-      } else if (actionIntent.toLowerCase().includes("hedge") || actionIntent.toLowerCase().includes("risk")) {
+      } else if (lowerIntent.includes("hedge") || lowerIntent.includes("risk")) {
         executionResult = { 
           platform: "Alpaca", 
           action: "Risk Mitigation", 
@@ -538,7 +540,7 @@ app.post("/api/execute/:botType", async (req, res) => {
           status: "Hedging Active" 
         };
       } else {
-        const determineSide = () => actionIntent.toLowerCase().includes('sell') || actionIntent.toLowerCase().includes('liquidate') ? 'sell' : 'buy';
+        const determineSide = () => lowerIntent.includes('sell') || lowerIntent.includes('liquidate') ? 'sell' : 'buy';
         const payloadFormat = {
            endpoint: 'https://api.alpaca.markets/v2/orders',
            method: 'POST',
@@ -548,7 +550,7 @@ app.post("/api/execute/:botType", async (req, res) => {
       }
     }
     else if (botType === "coinbase") {
-      if (actionIntent.toLowerCase().includes("yield") || actionIntent.toLowerCase().includes("stake")) {
+      if (lowerIntent.includes("yield") || lowerIntent.includes("stake")) {
         executionResult = { 
           platform: "Coinbase", 
           action: "Yield Optimization", 
@@ -563,14 +565,14 @@ app.post("/api/execute/:botType", async (req, res) => {
       const token = config.tokens?.accessToken;
       if (!token) throw new Error("Missing Gmail Access Token");
 
-      if (actionIntent.toLowerCase().includes("filter") || actionIntent.toLowerCase().includes("clean")) {
+      if (lowerIntent.includes("filter") || lowerIntent.includes("clean")) {
         executionResult = { 
           platform: "Gmail", 
           action: "Sweep Inbox", 
           stats: { labels_applied: 42, archived: 110 },
           status: "Success" 
         };
-      } else if (actionIntent.toLowerCase().includes("draft") || actionIntent.toLowerCase().includes("reply")) {
+      } else if (lowerIntent.includes("draft") || lowerIntent.includes("reply")) {
          executionResult = { 
            platform: "Gmail", 
            action: "Draft Smart Reply", 
@@ -585,14 +587,14 @@ app.post("/api/execute/:botType", async (req, res) => {
       const token = config.tokens?.accessToken;
       if (!token) throw new Error("Missing Meta Access Token");
 
-      if (actionIntent.toLowerCase().includes("scale") || actionIntent.toLowerCase().includes("budget")) {
+      if (lowerIntent.includes("scale") || lowerIntent.includes("budget")) {
         executionResult = { 
           platform: "Meta Ads", 
           action: "Budget Optimization", 
           details: "Increased daily budget by 15% on high-performing ad sets.",
           status: "Success" 
         };
-      } else if (actionIntent.toLowerCase().includes("creative") || actionIntent.toLowerCase().includes("hook")) {
+      } else if (lowerIntent.includes("creative") || lowerIntent.includes("hook")) {
         executionResult = { 
           platform: "Meta Ads", 
           action: "Creative Analysis", 
@@ -604,7 +606,7 @@ app.post("/api/execute/:botType", async (req, res) => {
       }
     }
     else if (botType === "pinterest") {
-      if (actionIntent.toLowerCase().includes("pin") || actionIntent.toLowerCase().includes("post")) {
+      if (lowerIntent.includes("pin") || lowerIntent.includes("post")) {
         executionResult = { 
           platform: "Pinterest", 
           action: "Schedule Pin", 
@@ -616,14 +618,14 @@ app.post("/api/execute/:botType", async (req, res) => {
       }
     }
     else if (botType === "discord") {
-      if (actionIntent.toLowerCase().includes("announce") || actionIntent.toLowerCase().includes("message")) {
+      if (lowerIntent.includes("announce") || lowerIntent.includes("message")) {
         executionResult = { 
           platform: "Discord", 
           action: "Post Announcement", 
           status: "Broadcasted",
           details: "Message sent to #announcements regarding new store drop." 
         };
-      } else if (actionIntent.toLowerCase().includes("sentiment") || actionIntent.toLowerCase().includes("track")) {
+      } else if (lowerIntent.includes("sentiment") || lowerIntent.includes("track")) {
         executionResult = { 
           platform: "Discord", 
           action: "Sentiment Sweep", 
@@ -645,7 +647,7 @@ app.post("/api/execute/:botType", async (req, res) => {
       oauth2Client.setCredentials({ access_token: token, refresh_token: config.tokens?.refreshToken });
       const youtube = google.youtube({ version: 'v3', auth: oauth2Client });
 
-      if (actionIntent.toLowerCase().includes("performance") || actionIntent.toLowerCase().includes("analyze")) {
+      if (lowerIntent.includes("performance") || lowerIntent.includes("analyze")) {
         const stats = await youtube.channels.list({ part: ['statistics'], mine: true });
         executionResult = { 
           platform: "YouTube", 
@@ -653,28 +655,28 @@ app.post("/api/execute/:botType", async (req, res) => {
           yt_stats: stats.data.items?.[0]?.statistics,
           status: "Synchronization Complete" 
         };
-      } else if (actionIntent.toLowerCase().includes("title") || actionIntent.toLowerCase().includes("metadata")) {
+      } else if (lowerIntent.includes("title") || lowerIntent.includes("metadata")) {
         executionResult = { 
           platform: "YouTube", 
           action: "Optimize Video Metadata", 
           status: "Scheduled",
           details: "AI identified high-converting keywords for current trend cycle." 
         };
-      } else if (actionIntent.toLowerCase().includes("comment") || actionIntent.toLowerCase().includes("spam")) {
+      } else if (lowerIntent.includes("comment") || lowerIntent.includes("spam")) {
         executionResult = { 
           platform: "YouTube", 
           action: "Comment Moderation", 
           status: "Active",
           details: "Scanning for spam links and low-effort bot comments. AI-flagged items held for review." 
         };
-      } else if (actionIntent.toLowerCase().includes("fetch") && actionIntent.toLowerCase().includes("comment")) {
+      } else if (lowerIntent.includes("fetch") && lowerIntent.includes("comment")) {
         executionResult = { 
           platform: "YouTube", 
           action: "Fetch Latest Comments", 
           status: "Success",
           details: "Retrieved last 50 comments. Sentiment analysis: 82% Positive." 
         };
-      } else if (actionIntent.toLowerCase().includes("description") || actionIntent.toLowerCase().includes("metadata")) {
+      } else if (lowerIntent.includes("description") || lowerIntent.includes("metadata")) {
         executionResult = { 
           platform: "YouTube", 
           action: "Update Description & Metadata", 
@@ -686,7 +688,7 @@ app.post("/api/execute/:botType", async (req, res) => {
       }
     }
     else if (botType === "amazon") {
-      if (actionIntent.toLowerCase().includes("buy-box") || actionIntent.toLowerCase().includes("competitor")) {
+      if (lowerIntent.includes("buy-box") || lowerIntent.includes("competitor")) {
         executionResult = { 
           platform: "Amazon", 
           action: "Buy-Box Defense", 
@@ -698,7 +700,7 @@ app.post("/api/execute/:botType", async (req, res) => {
       }
     }
     else if (botType === "etsy") {
-      if (actionIntent.toLowerCase().includes("msg") || actionIntent.toLowerCase().includes("reply")) {
+      if (lowerIntent.includes("msg") || lowerIntent.includes("reply")) {
         executionResult = { 
           platform: "Etsy", 
           action: "Auto-Responder", 
@@ -727,7 +729,7 @@ app.post("/api/execute/:botType", async (req, res) => {
        };
     }
     else if (botType === "ebay") {
-      if (actionIntent.toLowerCase().includes("resync") || actionIntent.toLowerCase().includes("price")) {
+      if (lowerIntent.includes("resync") || lowerIntent.includes("price")) {
         executionResult = { 
           platform: "eBay", 
           action: "Price Floor Lock", 
@@ -739,7 +741,7 @@ app.post("/api/execute/:botType", async (req, res) => {
       }
     }
     else if (botType === "botboss") {
-      if (actionIntent.toLowerCase().includes("halt") || actionIntent.toLowerCase().includes("stop")) {
+      if (lowerIntent.includes("halt") || lowerIntent.includes("stop")) {
         executionResult = { 
           platform: "Bot Boss", 
           action: "Emergency Protocol", 
