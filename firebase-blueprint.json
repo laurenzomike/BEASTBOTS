@@ -73,46 +73,12 @@
         "apiKey": { "type": "string" },
         "slippageTolerance": { "type": "number" }
       }
-    },
-    "BotMemory": {
-      "title": "Bot Long-term Memory",
-      "description": "Persistent memory facts that the bot learns and maintains over time.",
-      "type": "object",
-      "properties": {
-        "botId": { "type": "string" },
-        "userId": { "type": "string" },
-        "memories": { "type": "array", "items": { "type": "string" }, "description": "Array of learned facts or observations." },
-        "updatedAt": { "type": "string", "format": "timestamp" }
-      }
-    },
-    "BotFile": {
-      "title": "Bot Knowledge Asset",
-      "description": "Metadata for files uploaded as bot knowledge.",
-      "type": "object",
-      "properties": {
-        "userId": { "type": "string" },
-        "botId": { "type": "string" },
-        "fileName": { "type": "string" },
-        "contentType": { "type": "string" },
-        "fileSize": { "type": "number" },
-        "contentSummary": { "type": "string", "description": "AI-generated summary or extracted text for context." },
-        "url": { "type": "string" },
-        "createdAt": { "type": "string", "format": "timestamp" }
-      }
     }
   },
   "firestore": {
     "/users/{userId}/bots/{botId}": {
       "schema": "Bot",
       "description": "Stores user bot configurations"
-    },
-    "/users/{userId}/bots/{botId}/memories/{memoryId}": {
-      "schema": "BotMemory",
-      "description": "Stores long-term persistent memory for a specific bot."
-    },
-    "/users/{userId}/bots/{botId}/files/{fileId}": {
-      "schema": "BotFile",
-      "description": "Stores metadata for knowledge assets uploaded to the bot."
     },
     "/users/{userId}/activities/{activityId}": {
       "schema": "Activity",
