@@ -112,11 +112,11 @@ app.get(["/api/oauth/:provider/callback", "/api/oauth/:provider/callback/"], asy
     const redirectUri = `${process.env.APP_URL}/api/oauth/${provider}/callback`;
 
     let tokenEndpoint = "";
-    let tokenHeaders: any = { "Content-Type": "application/x-www-form-urlencoded" };
-    let body: any = {
-      code,
-      client_id: process.env[`${provider.toUpperCase()}_CLIENT_ID`],
-      client_secret: process.env[`${provider.toUpperCase()}_CLIENT_SECRET`],
+    let tokenHeaders: Record<string, string> = { "Content-Type": "application/x-www-form-urlencoded" };
+    let body: Record<string, string> = {
+      code: code as string,
+      client_id: process.env[`${provider.toUpperCase()}_CLIENT_ID`] || "",
+      client_secret: process.env[`${provider.toUpperCase()}_CLIENT_SECRET`] || "",
       grant_type: "authorization_code",
       redirect_uri: redirectUri,
     };
@@ -128,8 +128,8 @@ app.get(["/api/oauth/:provider/callback", "/api/oauth/:provider/callback/"], asy
       tokenEndpoint = "https://api.pinterest.com/v1/oauth/token";
     } else if (provider === "gmail" || provider === "youtube") {
       tokenEndpoint = "https://oauth2.googleapis.com/token";
-      body.client_id = process.env.GOOGLE_CLIENT_ID;
-      body.client_secret = process.env.GOOGLE_CLIENT_SECRET;
+      body.client_id = process.env.GOOGLE_CLIENT_ID || "";
+      body.client_secret = process.env.GOOGLE_CLIENT_SECRET || "";
     } else if (provider === "ebay") {
       tokenEndpoint = "https://api.ebay.com/identity/v1/oauth2/token";
       // eBay requires Basic Auth for token exchange
@@ -152,7 +152,7 @@ app.get(["/api/oauth/:provider/callback", "/api/oauth/:provider/callback/"], asy
       body: new URLSearchParams(body).toString(),
     });
 
-    const tokens = await tokenResponse.json();
+    const tokens = await tokenResponse.json() as Record<string, any>;
 
     if (tokens.access_token) {
       // Store tokens in Firestore
