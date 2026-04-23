@@ -24,7 +24,7 @@ export const BotCard: React.FC<BotCardProps> = ({ bot, index, onSelect, onUpdate
       className="grid-cell flex flex-col justify-between group min-h-[300px] border-[3px] border-white/20 hover:border-white transition-all rounded-none brutal-shadow hover:-translate-y-1 bg-[#0A0A0A] hover:bg-black overflow-hidden relative"
     >
       {/* Decorative scanning line */}
-      <div className="absolute top-0 left-0 w-full h-[2px] bg-[var(--brand)] opacity-0 group-hover:opacity-50 group-hover:animate-bounce shadow-[0_0_15px_var(--brand)] transition-opacity" />
+      <div className="absolute top-0 left-0 w-full h-[2px] bg-[var(--accent)] opacity-0 group-hover:opacity-100 group-hover:animate-bounce shadow-[0_0_20px_var(--accent)] transition-opacity z-10" />
       
       <div className="flex justify-between items-start">
         <div className="flex items-center gap-3">
@@ -32,6 +32,12 @@ export const BotCard: React.FC<BotCardProps> = ({ bot, index, onSelect, onUpdate
            <span className="mono-type text-[11px] opacity-100 font-black text-white/40">
              {(index + 1).toString().padStart(2, '0')}
            </span>
+
+           <div className="grid grid-cols-3 gap-[1px] w-6 h-6 ml-4">
+             {[...Array(9)].map((_, i) => (
+               <div key={i} className="bg-[var(--brand)] w-full h-full" style={{animation: `pulse ${Math.random() * 2 + 0.5}s infinite`}}></div>
+             ))}
+           </div>
         </div>
         <div className="flex items-center gap-3">
           {bot.config?.winCount > 0 && (
@@ -117,6 +123,17 @@ export const BotCard: React.FC<BotCardProps> = ({ bot, index, onSelect, onUpdate
             </button>
           )}
         </div>
+      </div>
+
+      <div className="absolute top-2 left-2 w-2 h-2 rounded-full border border-white/50 flex items-center justify-center"><div className="w-1 h-[1px] bg-white/50 rotate-45"></div></div>
+      <div className="absolute top-2 right-2 w-2 h-2 rounded-full border border-white/50 flex items-center justify-center"><div className="w-1 h-[1px] bg-white/50 -rotate-45"></div></div>
+      <div className="absolute bottom-2 left-2 w-2 h-2 rounded-full border border-white/50 flex items-center justify-center"><div className="w-1 h-[1px] bg-white/50 -rotate-45"></div></div>
+      <div className="absolute bottom-2 right-2 w-2 h-2 rounded-full border border-white/50 flex items-center justify-center"><div className="w-1 h-[1px] bg-white/50 rotate-45"></div></div>
+
+      <div className="h-4 w-full flex gap-[1px] mt-4 opacity-50">
+        {Array.from({length: 30}).map((_, i) => (
+          <div key={i} className="bg-white h-full flex-grow" style={{opacity: Math.random()}}></div>
+        ))}
       </div>
     </div>
   );

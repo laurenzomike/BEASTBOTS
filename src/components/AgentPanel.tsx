@@ -32,6 +32,18 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [activities, setActivities] = useState<any[]>([]);
   const [platformInfo, setPlatformInfo] = useState<any>(null);
+  const [terminalLines, setTerminalLines] = useState<string[]>([]);
+
+
+  useEffect(() => {
+    if (!bot) return;
+    const interval = setInterval(() => {
+      const hex = Math.floor(Math.random()*16777215).toString(16).toUpperCase().padStart(6, '0');
+      const msg = Math.random() > 0.5 ? `[OK] SYNC 0x${hex}` : `[INFO] Parsing nodes...`;
+      setTerminalLines(prev => [msg, ...prev].slice(0, 50));
+    }, 200);
+    return () => clearInterval(interval);
+  }, [bot]);
 
   useEffect(() => {
     if (!bot) return;
@@ -196,8 +208,9 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
         animate={{ x: 0 }}
         exit={{ x: "100%" }}
         transition={{ type: "spring", damping: 30, stiffness: 300 }}
-        className="fixed inset-y-0 right-0 w-full md:w-[600px] bg-[#D4FF00] border-l-[8px] border-black z-50 overflow-y-auto selection:bg-black selection:text-[#D4FF00]"
+        className="fixed inset-y-0 right-0 w-full md:w-[600px] bg-[var(--brand)] border-l-[8px] border-black z-50 overflow-y-auto selection:bg-black selection:text-[var(--brand)]"
       >
+        <div className="w-full h-4 hazard-stripes"></div>
         <div className="p-8 lg:p-12 text-black">
           <div className="flex justify-between items-start mb-12">
             <div className="flex flex-col gap-2">
@@ -226,6 +239,16 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
           </div>
 
           <div className="space-y-12">
+
+             <section className="space-y-6 mb-12">
+                <h3 className="font-sans text-3xl font-black uppercase border-b-[4px] border-black pb-2">Live Terminal Stream</h3>
+                <div className="bg-black border-4 border-white p-4 h-48 overflow-y-auto font-mono text-[10px] text-[var(--brand)] brutal-shadow flex flex-col-reverse">
+                   {terminalLines.map((line, i) => (
+                      <div key={i} className="opacity-80">&gt; {line}</div>
+                   ))}
+                </div>
+             </section>
+
              <section className="space-y-6">
                 <div className="flex items-center justify-between border-b-[4px] border-black pb-2">
                   <h3 className="font-sans text-3xl font-black uppercase flex items-center gap-3"><Trophy className="w-8 h-8" />Objective Milestones</h3>

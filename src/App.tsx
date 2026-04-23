@@ -44,6 +44,7 @@ export default function App() {
   const [statusFilter, setStatusFilter] = useState<Bot["status"] | "all">("all");
   const [executingBots, setExecutingBots] = useState<Set<string>>(new Set());
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isFleetExecuting, setIsFleetExecuting] = useState(false);
   
   const coordinatorRef = useRef<NodeJS.Timeout | null>(null);
   const lastRunTracker = useRef<Record<string, any>>({});
@@ -365,6 +366,7 @@ Keep it to 1-2 authoritative sentences.`;
       </div>
 
       <header className="p-6 md:p-12 border-b-[4px] border-white z-10 bg-[var(--brand)] text-black relative overflow-hidden">
+        <div className="marquee-container absolute inset-0 opacity-20 pointer-events-none z-0 flex items-center"><div className="marquee-content font-mono text-9xl whitespace-nowrap text-black font-black">SYSTEM OVERRIDE // ACTIVE // SYSTEM OVERRIDE // ACTIVE // </div></div>
         <div className="absolute top-0 right-0 w-64 h-64 bg-white/20 rotate-45 translate-x-32 -translate-y-32 pointer-events-none" />
         <div className="flex flex-col md:flex-row justify-between items-end relative z-10">
           <div className="flex flex-col gap-2">
@@ -482,7 +484,6 @@ Keep it to 1-2 authoritative sentences.`;
                   return (
                     <AgentPanel 
                       bot={bot}
-                      onUpdateBot={() => {}}
                       onClose={() => setSelectedBot(null)}
                     />
                   );
