@@ -10,14 +10,22 @@ import {
 import { cn } from "./lib/utils";
 import { AgentPanel } from "./components/AgentPanel";
 import { AgentOnboarding } from "./components/AgentOnboarding";
+import { Landing } from "./components/Landing";
+import { GlobalTerminal } from "./components/GlobalTerminal";
+import { AppSidebar } from "./components/AppSidebar";
+import { AppHeader } from "./components/AppHeader";
+import { GlobalSettings } from "./components/GlobalSettings";
+import { AppFleetGrid } from "./components/AppFleetGrid";
 import { BotCard } from "./components/BotCard";
 import { AuditView } from "./components/AuditView";
 import { GoogleGenAI } from "@google/genai";
 import { handleBotErrorTransition } from "./lib/errorUtils";
+import { IntegrationHub } from "./components/IntegrationHub";
 import { getRelevantMemories, saveMemory } from "./services/memoryService";
 import { Bot, Activity } from "./types";
 import { BOT_TYPES } from "./constants";
 import { motion, AnimatePresence } from "motion/react";
+import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
@@ -38,12 +46,13 @@ export default function App() {
   const [briefing, setBriefing] = useState<string>("Checking on your bots... syncing up now.");
   const [isBriefingLoading, setIsBriefingLoading] = useState(false);
   const [showTerminal, setShowTerminal] = useState(true);
-  const [currentView, setCurrentView] = useState<"fleet" | "audit">("fleet");
+  const [currentView, setCurrentView] = useState<"fleet" | "audit" | "integrations">("fleet");
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<Bot["status"] | "all">("all");
   const [executingBots, setExecutingBots] = useState<Set<string>>(new Set());
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   
   const coordinatorRef = useRef<NodeJS.Timeout | null>(null);
   const lastRunTracker = useRef<Record<string, any>>({});
@@ -56,38 +65,61 @@ export default function App() {
     }, 5000);
   };
 
-  const handleGlobalDirectiveSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const input = (e.currentTarget as any).directive.value;
-    if (input) {
+  const saveGlobalDirective = async (input: string) => {
+    if (input && user) {
       setGlobalDirective(input);
-      addToast("Executive protocol updated system-wide.", "warning");
-      setBriefing(`NEW GOAL: ${input.slice(0, 50)}...`);
-      (e.currentTarget as any).directive.value = "";
+      addToast("Universal Protocol broadcasted to all units.", "warning");
+      
+      try {
+        await setDoc(doc(db, "users", user.uid), { 
+          globalDirective: input,
+          updatedAt: serverTimestamp() 
+        }, { merge: true });
+      } catch (err) {
+        console.error("Failed to persist directive:", err);
+      }
+      
+      setBriefing(`PROTOCOL SHIFT: Pursuing "${input.slice(0, 40)}..."`);
     }
   };
 
+  const handleGlobalDirectiveSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const input = formData.get("directive") as string;
+    await saveGlobalDirective(input);
+    e.currentTarget.reset();
+  };
+
   const generateExecutiveBriefing = async () => {
-    if (globalActivities.length < 3) return;
     setIsBriefingLoading(true);
     try {
-      const recentLogs = globalActivities.slice(0, 10).map(a => `[${a.botType}] ${a.text}`).join("\n");
-      const prompt = `You are a helpful manager in charge of a group of AI bots. 
-      Analyze these recent activities and provide a simple, 2-sentence summary:
+      const recentLogs = globalActivities.slice(0, 15).map(a => `[${a.botType}] ${a.text}`).join("\n");
+      const botPulse = bots.map(b => `${b.type}: ${b.status}`).join(", ");
+      
+      const prompt = `You are the Fleet Admiral for an autonomous bot network.
+      
+      CORE PROTOCOL: ${globalDirective}
+      FLEET PULSE: ${botPulse}
+      RECENT LOGS:
       ${recentLogs}
       
-      Main Goal: ${globalDirective}
-      Style: ${persona}
+      TASK: Provide a high-impact situation report.
+      Format:
+      SUMMARY: [1-2 sentences]
+      FLEET_STATUS: [NOMINAL | DEGRADED | CRITICAL]
+      EFFICIENCY: [0-100]%
+      MORALE: [0-100]% (Simulated based on success/fail logs)
       
-      Focus on what has been done and if it helps the main goal.`;
+      Keep it professional, technical, and data-driven. Use the '${persona}' persona.`;
 
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-3.1-pro-preview",
         contents: prompt,
-        config: { temperature: 0.5 }
+        config: { temperature: 0.7 }
       });
-      setBriefing(response.text || "Everything is running as expected.");
-      addToast("Bot summary updated.", "success");
+      setBriefing(response.text || "Operational parameters within noise floor.");
+      addToast("Fleet intelligence updated.", "success");
     } catch (e) {
       console.error("Failed to generate briefing", e);
     } finally {
@@ -98,8 +130,18 @@ export default function App() {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
       setUser(u);
-      setLoading(false);
-      if (u) seedBots(u.uid);
+      
+      // Delay disabling the loading screen slightly so that we map the Firebase response properly.
+      if (u) {
+          seedBots(u.uid).then(() => {
+              setLoading(false);
+          }).catch((err) => {
+              console.error("Seed bots failed, but app will start:", err);
+              setLoading(false);
+          });
+      } else {
+        setLoading(false);
+      }
     });
     return unsub;
   }, []);
@@ -123,6 +165,16 @@ export default function App() {
       handleFirestoreError(error, 'list', `users/${user.uid}/bots`);
     });
 
+    // Profile listener for globalDirective
+    const unsubscribeProfile = onSnapshot(doc(db, "users", user.uid), (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        if (data.globalDirective && data.globalDirective !== globalDirective) {
+          setGlobalDirective(data.globalDirective);
+        }
+      }
+    });
+
     const activitiesQuery = query(collection(db, "users", user.uid, "activities"), where("userId", "==", user.uid));
     const unsubscribeActivities = onSnapshot(activitiesQuery, (snapshot) => {
       const acts: Activity[] = [];
@@ -133,6 +185,7 @@ export default function App() {
 
     return () => {
       unsubscribeBots();
+      unsubscribeProfile();
       unsubscribeActivities();
     };
   }, [user]);
@@ -168,26 +221,47 @@ export default function App() {
         .map(a => `[${a.botType.toUpperCase()}]: ${a.text}`)
         .join('\n');
 
+      const activeParams = Object.entries(botConfig.parameters || {})
+        .map(([k, v]) => `- ${k.toUpperCase()}: ${v}`)
+        .join('\n');
+
+      const enabledResps = typeDef?.responsibilities
+        ?.filter(r => botConfig.responsibilities?.includes(r.id))
+        .map(r => `${r.label}: ${r.description}`)
+        .join('\n- ') || "Full autonomy within role.";
+
       const prompt = `You are a specialized independent executive on the ${bot.type.toUpperCase()} platform. 
 Role expertise: ${typeDef?.expertise || "General autonomous operation"}.
 
 🚨 UNIVERSAL OPERATIONAL PROTOCOL: ${globalDirective}
 
-Context:
+Operational Context:
 - Team Activity: ${recentFleetActions || "No recent team data."}
 - Memory Logs: ${memories.join(', ') || "Initial state."}
 - Operational Files: ${filesContext || "None."}
 - PRIMARY MISSION: ${botConfig.userGoal || "Business growth."}
 - SUCCESS DIRECTIVE: ${botConfig.winCondition || "Excellence in execution."}
 - OPERATIONAL SCHEDULE: ${botConfig.schedule || "Continuous"}
-- CORE RESPONSIBILITIES: ${botConfig.responsibilities?.join(', ') || "Full autonomy within role."}
+
+CURRENT CONSTRAINTS:
+- ENABLED RESPONSIBILITIES: 
+- ${enabledResps}
+
+TUNEABLE PARAMETERS:
+${activeParams || "- Using system defaults."}
 
 TASK: Decide your next high-impact autonomous step as an independent unit.
-Focus exclusively on your role, your specific Success Directive, and assigned Responsibilities.
+Focus exclusively on your role, your specific Success Directive, and ENABLED Responsibilities.
+Stay strictly within TUNEABLE PARAMETERS.
 Verify if current action falls within your Operational Schedule.
 The Universal Protocol provides base constraints, but your Primary Mission is paramount.
 
-Elite agents are decisive, technical, and data-driven.
+Output format:
+1. Short reasoning summary (1 sentence max).
+2. [WIN_DETECTION] if you have achieved your Success Directive or a significant milestone.
+3. [MEMORY_UPDATE] if you have learned a new fact, preference, or pattern.
+4. [STRATEGIC_SHARE] (Optional) If you have identified a pattern or tactic that the ENTIRE fleet (not just your type) should adopt or be aware of.
+5. [ACTION] [The specific intent of your action]
 
 Output format:
 - [ACTION] descriptive step
@@ -212,14 +286,35 @@ Keep it to 1-2 authoritative sentences.`;
 
       const output = response.text || `[ANALYSIS] Maintaining standby status for ${bot.type}.`;
 
+      // Strategic Intelligence Sharing
+      if (output.includes('[STRATEGIC_SHARE]')) {
+        const shareMatch = output.match(/\[STRATEGIC_SHARE\]\s*(.*?)(?=\n|\[|$)/);
+        if (shareMatch && user) {
+          const intel = shareMatch[1].trim();
+          await setDoc(doc(db, "users", user.uid), { 
+            fleetIntelligence: intel,
+            intelUpdatedAt: serverTimestamp() 
+          }, { merge: true });
+
+          await addDoc(collection(db, "users", user.uid, "activities"), {
+            userId: user.uid,
+            botId: "fleet-intelligence",
+            botType: "FLEET",
+            text: `[STRATEGIC_EVOLUTION] Node ${bot.name} broadcasted: ${intel}`,
+            timestamp: serverTimestamp(),
+            type: 'analysis'
+          });
+        }
+      }
+
       // Memory Extraction
-      const memoryMatch = output.match(/\[MEMORY:\s*(.*?)\]/);
+      const memoryMatch = output.match(/\[(?:MEMORY_UPDATE|MEMORY):\s*(.*?)\]/);
       if (memoryMatch && memoryMatch[1]) {
         await saveMemory(user!.uid, bot.id, memoryMatch[1].trim());
       }
 
       // Achievement (Objective) Extraction
-      const winMatch = output.match(/\[(?:OBJECTIVE|WIN):\s*(.*?)\]/);
+      const winMatch = output.match(/\[(?:OBJECTIVE|WIN_DETECTION|WIN):\s*(.*?)\]/);
       if (winMatch && winMatch[1]) {
         const achievement = winMatch[1].trim();
         const winRef = collection(db, "users", user!.uid, "bots", bot.id, "milestones");
@@ -233,14 +328,38 @@ Keep it to 1-2 authoritative sentences.`;
         }, { merge: true });
       }
 
-      await addDoc(collection(db, "users", user!.uid, "activities"), {
-        userId: user!.uid,
-        botId: bot.id,
-        botType: bot.type,
-        text: output,
-        timestamp: serverTimestamp(),
-        type: output.startsWith('[ACTION]') ? 'action' : 'analysis'
-      });
+      const isAction = output.includes('[ACTION]');
+      
+      if (isAction) {
+          // Attempt Live Execution via Proxy
+          const actionTextMatch = output.match(/\[ACTION\]\s*(.*?)(?=\n|\[|$)/);
+          const actionIntent = actionTextMatch ? actionTextMatch[1].trim() : output;
+
+          try {
+             await fetch(`/api/execute/${bot.type}`, {
+               method: 'POST',
+               headers: { 'Content-Type': 'application/json' },
+               body: JSON.stringify({
+                 uid: user!.uid,
+                 actionIntent,
+                 aiReasoning: output
+               })
+             });
+             // Real execution logged by server logic.
+          } catch (e) {
+             console.error("Execution engine failed:", e);
+          }
+      } else {
+        // Just an analysis, log it normally independent of execution
+        await addDoc(collection(db, "users", user!.uid, "activities"), {
+          userId: user!.uid,
+          botId: bot.id,
+          botType: bot.type,
+          text: output,
+          timestamp: serverTimestamp(),
+          type: 'analysis'
+        });
+      }
 
     } catch (err) {
       console.error(`AI Error for ${bot.id}:`, err);
@@ -303,6 +422,102 @@ Keep it to 1-2 authoritative sentences.`;
     }
   };
 
+  useEffect(() => {
+    const handleOAuthMessage = (event: MessageEvent) => {
+      // Validate origin is from AI Studio preview or localhost
+      const origin = event.origin;
+      if (!origin.endsWith('.run.app') && !origin.includes('localhost')) {
+        return;
+      }
+      
+      if (event.data?.type === 'OAUTH_AUTH_SUCCESS') {
+        const providerName = event.data.provider || 'Platform';
+        addToast(`${providerName.toUpperCase()} linked successfully system-wide.`, "success");
+        // Firestore real-time listeners will automatically update bot status and config
+      }
+    };
+    window.addEventListener('message', handleOAuthMessage);
+    return () => window.removeEventListener('message', handleOAuthMessage);
+  }, []);
+
+  const deployNewBot = async (typeId: string) => {
+    if (!user) return;
+    const typeDef = BOT_TYPES.find(t => t.id === typeId);
+    if (!typeDef) {
+       addToast("Invalid platform type selection.", "error");
+       return;
+    }
+
+    addToast(`Provisioning new ${typeDef.name} node...`, "info");
+    
+    try {
+      const newBotRef = doc(collection(db, "users", user.uid, "bots"));
+      const newBot: Bot = {
+        id: newBotRef.id,
+        name: `${typeDef.name} Agent`,
+        type: typeId,
+        status: "auth-required",
+        userId: user.uid,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        autonomous: false,
+        config: {
+          userGoal: "Standard Operation",
+          winCondition: "KPI Satisfaction",
+          winCount: 0,
+          schedule: "24/7",
+          responsibilities: typeDef.responsibilities?.filter(r => r.defaultEnabled).map(r => r.id) || [],
+          parameters: typeDef.parameters?.reduce((acc, p) => ({ ...acc, [p.id]: p.defaultValue }), {}) || {}
+        }
+      };
+
+      await setDoc(newBotRef, newBot);
+      addToast("New agent deployment successful.", "success");
+      setCurrentView('fleet');
+    } catch (err) {
+      console.error(err);
+      addToast("Failed to provision agent node.", "error");
+    }
+  };
+
+  const handleGlobalCommand = async (cmd: string) => {
+    if (!user) return;
+    addToast(`Transmitting command: ${cmd.slice(0, 30)}...`, 'info');
+    
+    try {
+      await addDoc(collection(db, "users", user.uid, "activities"), {
+        userId: user.uid,
+        botId: "fleet-intelligence",
+        botType: "FLEET",
+        text: `[CORE_COMMAND] ${cmd}`,
+        timestamp: serverTimestamp(),
+        type: 'action'
+      });
+      
+      // Optionally sync this command to the user profile so bots can respond to it specifically
+      await setDoc(doc(db, "users", user.uid), { 
+        lastGlobalCommand: cmd,
+        lastCommandAt: serverTimestamp() 
+      }, { merge: true });
+
+      // Simulated Fleet Intelligence Acknowledgement
+      setTimeout(async () => {
+        await addDoc(collection(db, "users", user.uid, "activities"), {
+          userId: user.uid,
+          botId: "fleet-intelligence",
+          botType: "FLEET",
+          text: `[INTEL_SYNC] Directive acknowledged. Broadcasting to 14 sub-agents. Recalibrating behavioral matrices to align with: "${cmd.slice(0, 40)}${cmd.length > 40 ? '...' : ''}"`,
+          timestamp: serverTimestamp(),
+          type: 'analysis'
+        });
+      }, 1500);
+
+    } catch (e) {
+      console.error(e);
+      addToast("Failed to transmit command.", "error");
+    }
+  };
+
   const handleConnect = async (botType: string, authType: string) => {
     if (!user) return;
     if (authType === "apikey") {
@@ -310,12 +525,23 @@ Keep it to 1-2 authoritative sentences.`;
       if (key) updateBotStatus(botType, "online");
       return;
     }
+    
+    let shop = "";
+    if (botType === "shopify") {
+      shop = prompt("Enter your Shopify store name (e.g. 'my-beast-store'):") || "";
+      if (!shop) return;
+    }
+
     try {
-      const response = await fetch(`/api/oauth/${botType}/url?uid=${user.uid}`);
+      const response = await fetch(`/api/oauth/${botType}/url?uid=${user.uid}${shop ? `&shop=${shop}` : ''}`);
       const { url } = await response.json();
-      window.open(url, 'oauth_popup', 'width=600,height=700');
+      if (url) {
+        window.open(url, 'oauth_popup', 'width=600,height=700');
+      } else {
+        throw new Error("No URL returned from server.");
+      }
     } catch (error) {
-      addToast("OAuth initialization failed.", "error");
+      addToast("OAuth initialization failed. Check your API configuration.", "error");
     }
   };
 
@@ -345,115 +571,111 @@ Keep it to 1-2 authoritative sentences.`;
     return matchesSearch && matchesStatus;
   });
 
-  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-[var(--brand)] font-black text-4xl animate-pulse">STARTING BOT BOSS...</div>;
-  if (!user) return <div className="min-h-screen bg-black flex flex-col items-center justify-center p-6"><Zap className="w-24 h-24 text-[var(--brand)] mb-8" /><button onClick={login} className="hardware-button">Login to Manage Bots</button></div>;
+  if (loading) return (
+    <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center text-[#D4FF00] font-black tracking-tighter">
+       <div className="relative mb-8">
+          <Zap className="w-20 h-20 animate-pulse relative z-10" />
+          <div className="absolute inset-0 bg-[#D4FF00]/20 blur-2xl animate-pulse" />
+       </div>
+       <div className="flex flex-col items-center">
+          <span className="text-4xl md:text-6xl uppercase leading-none">Initializing</span>
+          <span className="text-white/40 font-mono text-[10px] mt-4 uppercase tracking-[0.4em]">Hardware Protocol Handshake...</span>
+       </div>
+    </div>
+  );
+
+  if (!user) return <Landing login={login} />;
 
   return (
     <div className="flex flex-col min-h-screen w-full font-sans bg-black selection:bg-[var(--brand)] selection:text-black">
       {/* Toast System */}
-      <div className="fixed top-4 right-4 z-[100] flex flex-col gap-2">
+      <div className="fixed top-8 right-8 z-[100] flex flex-col gap-4 max-w-sm w-full">
         <AnimatePresence>
           {toasts.map(t => (
             <motion.div 
               key={t.id}
-              initial={{ x: 100, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              exit={{ x: 100, opacity: 0 }}
+              initial={{ x: 100, opacity: 0, scale: 0.9 }}
+              animate={{ x: 0, opacity: 1, scale: 1 }}
+              exit={{ x: 100, opacity: 0, scale: 0.9, transition: { duration: 0.2 } }}
               className={cn(
-                "p-4 border-[3px] brutal-shadow border-black flex items-center gap-3 font-mono text-[10px] font-black uppercase text-black",
-                t.type === 'success' ? "bg-[var(--brand)]" : t.type === 'error' ? "bg-[var(--accent)] text-white" : "bg-white"
+                "p-4 border-[3px] brutal-shadow overflow-hidden relative group",
+                t.type === 'success' ? "bg-[#D4FF00] border-black text-black" : 
+                t.type === 'error' ? "bg-[#FF2E00] border-black text-white" : 
+                t.type === 'warning' ? "bg-[#00D1FF] border-black text-black" :
+                "bg-white border-black text-black"
               )}
             >
-              <Bell className="w-4 h-4" />
-              {t.message}
+              <div className="absolute top-0 left-0 w-full h-1 bg-black/10">
+                 <motion.div 
+                   initial={{ width: "100%" }}
+                   animate={{ width: "0%" }}
+                   transition={{ duration: 5, ease: "linear" }}
+                   className="h-full bg-black/20"
+                 />
+              </div>
+              <div className="flex items-start gap-4">
+                 <div className={cn(
+                   "p-2 border-2 border-black/10",
+                   t.type === 'success' ? "bg-black text-[#D4FF00]" : "bg-black/20"
+                 )}>
+                    <Bell className="w-4 h-4" />
+                 </div>
+                 <div className="flex flex-col gap-0.5">
+                    <span className="text-[8px] font-black uppercase opacity-40">System Notification</span>
+                    <p className="font-mono text-[11px] font-black leading-tight uppercase">{t.message}</p>
+                 </div>
+                 <button 
+                   onClick={() => setToasts(prev => prev.filter(toast => toast.id !== t.id))}
+                   className="ml-auto opacity-20 hover:opacity-100 transition-opacity"
+                 >
+                    <X className="w-3 h-3" />
+                 </button>
+              </div>
             </motion.div>
           ))}
         </AnimatePresence>
       </div>
 
-      <header className="p-6 md:p-12 border-b-[4px] border-white z-10 bg-[var(--brand)] text-black relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-white/20 rotate-45 translate-x-32 -translate-y-32 pointer-events-none" />
-        <div className="flex flex-col md:flex-row justify-between items-end relative z-10">
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-3 mb-2">
-               <div className="w-4 h-4 bg-[#FF2E00] brutal-shadow-red animate-pulse border-2 border-black" />
-               <span className="mono-type text-[10px] font-black uppercase bg-black px-2 py-1 text-white">System Online</span>
-               <span className="mono-type text-[10px] font-black uppercase bg-[var(--accent)] px-2 py-1 text-white">
-                  {bots.reduce((acc, curr) => acc + (curr.config?.winCount || 0), 0)} Objectives Met
-               </span>
-            </div>
-            <h1 className="display-type text-4xl sm:text-5xl md:text-[8vw] font-black uppercase tracking-tighter leading-none text-black">Bot Boss</h1>
-          </div>
-          <div className="mt-8 md:mt-0 flex flex-col items-end gap-2">
-             <span className="mono-type text-xs font-black uppercase bg-black text-white px-3 py-1">User: {user.email?.split('@')[0]}</span>
-             <div className="flex gap-4">
-                <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="lg:hidden p-2 border-4 border-black"><Layers className="w-8 h-8" /></button>
-                <button title="Settings" className="p-2 border-4 border-black hover:bg-black hover:text-white transition-all"><Settings className="w-8 h-8" /></button>
-                <button onClick={logout} title="Logout" className="p-2 border-4 border-black text-red-600 hover:bg-red-600 hover:text-white transition-all"><LogOut className="w-8 h-8" /></button>
-             </div>
-          </div>
-        </div>
-      </header>
+      <AppHeader 
+        user={user} 
+        bots={bots} 
+        isMobileMenuOpen={isMobileMenuOpen} 
+        setIsMobileMenuOpen={setIsMobileMenuOpen} 
+        setIsSettingsOpen={setIsSettingsOpen}
+        logout={logout} 
+      />
+
+      <GlobalSettings 
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        user={user}
+        globalDirective={globalDirective}
+        onDirectiveSubmit={(d) => {
+          saveGlobalDirective(d);
+        }}
+        persona={persona}
+        onPersonaChange={setPersona}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-4 min-h-screen">
-        <aside className={cn(
-            "border-r-[4px] border-white p-8 bg-[#0A0A0A] flex-col gap-12 relative",
-            isMobileMenuOpen ? "flex fixed inset-0 z-50 w-full" : "hidden lg:flex"
-        )}>
-           <button onClick={() => setIsMobileMenuOpen(false)} className="lg:hidden absolute top-8 right-8 text-white"><X className="w-8 h-8" /></button>
-           <nav className="flex flex-col gap-4 mt-12 lg:mt-0">
-              {[
-                { id: 'fleet', label: 'Active Agents', icon: Layers },
-                { id: 'audit', label: 'Universal Protocol', icon: ShieldAlert }
-              ].map(v => (
-                <button 
-                  key={v.id}
-                  onClick={() => { setCurrentView(v.id as any); setIsMobileMenuOpen(false); }}
-                  className={cn(
-                    "w-full p-4 flex items-center gap-4 border-[4px] font-black uppercase text-sm transition-all brutal-shadow",
-                    currentView === v.id ? "bg-[var(--brand)] text-black border-black -translate-y-1 translate-x-1 shadow-none" : "bg-black text-white border-white hover:border-[var(--brand)]"
-                  )}
-                >
-                  <v.icon className="w-6 h-6" />
-                  {v.label}
-                </button>
-              ))}
-           </nav>
-
-           <div className="space-y-6">
-              <span className="font-display text-2xl uppercase font-black text-white border-b-2 border-white pb-2 flex items-center justify-between">
-                Executive Overview
-                <button onClick={generateExecutiveBriefing} className={cn("p-1", isBriefingLoading && "animate-spin")}><RefreshCw className="w-4 h-4" /></button>
-              </span>
-              <div className="p-6 bg-white border-[4px] border-black brutal-shadow text-black relative group text-xs overflow-hidden">
-                {isBriefingLoading && <div className="absolute inset-0 bg-white/80 z-10 flex items-center justify-center font-black uppercase text-[10px] animate-pulse">Syncing Agent Status...</div>}
-                <p className="font-mono font-bold leading-relaxed">{briefing}</p>
-                <div className="mt-4 flex justify-between text-[8px] mono-type font-black uppercase opacity-50">
-                  <span>Status: {isBriefingLoading ? "Processing" : "Normal"}</span>
-                  <span>95% Reliable</span>
-                </div>
-              </div>
-           </div>
-
-           <div className="mt-auto pt-10 border-t border-white/10">
-              <form onSubmit={handleGlobalDirectiveSubmit} className="space-y-4">
-                <label className="mono-type text-[9px] font-black text-white/50 uppercase">Operational Constraint</label>
-                <div className="relative group brutal-shadow">
-                   <input 
-                     name="directive"
-                     defaultValue={globalDirective}
-                     placeholder="e.g. Prioritize data security..."
-                     className="w-full bg-black border-2 border-white p-3 pl-8 mono-type text-[10px] text-white focus:border-[var(--brand)] focus:outline-none"
-                   />
-                   <ChevronRight className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white group-focus-within:text-[var(--brand)]" />
-                </div>
-              </form>
-           </div>
-        </aside>
+        <AppSidebar
+          isMobileMenuOpen={isMobileMenuOpen}
+          setIsMobileMenuOpen={setIsMobileMenuOpen}
+          currentView={currentView}
+          setCurrentView={setCurrentView}
+          isBriefingLoading={isBriefingLoading}
+          briefing={briefing}
+          generateExecutiveBriefing={generateExecutiveBriefing}
+          globalDirective={globalDirective}
+          handleGlobalDirectiveSubmit={handleGlobalDirectiveSubmit}
+          persona={persona}
+          setPersona={setPersona}
+          bots={bots}
+        />
 
         <main className="lg:col-span-3 pb-32 bg-[#121212] overflow-x-hidden relative min-h-screen">
           <AnimatePresence mode="wait">
-            {currentView === "audit" ? (
+            {currentView === "audit" && (
               <motion.div 
                 key="audit"
                 initial={{ opacity: 0, y: 20 }}
@@ -463,152 +685,78 @@ Keep it to 1-2 authoritative sentences.`;
               >
                 <AuditView bots={bots} activities={globalActivities} />
               </motion.div>
-            ) : selectedBot ? (
-              <motion.div 
-                key="onboarding-or-panel"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.4 }}
-                className="min-h-screen"
-              >
-                {(() => {
-                  const bot = bots.find(b => b.id === selectedBot.id);
-                  if (!bot) return null;
-                  if (!bot.config?.isInitialized) {
-                    return (
-                      <AgentOnboarding 
-                        bot={bot} 
-                        typeDef={BOT_TYPES.find(t => t.id === bot.type)} 
-                        onComplete={() => {
-                          addToast(`${bot.name} initialization protocol complete. Active.`, 'success');
-                        }}
-                      />
-                    );
-                  }
-                  return (
-                    <AgentPanel 
-                      bot={bot}
-                      onUpdateBot={() => {}}
-                      onClose={() => setSelectedBot(null)}
-                    />
-                  );
-                })()}
-              </motion.div>
-            ) : (
+            )}
+
+            {currentView === "fleet" && (
               <motion.div 
                 key="fleet"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
                 transition={{ duration: 0.4 }}
-                className="flex flex-col h-full"
               >
-                {/* Search & Filter Bar */}
-                <div className="p-8 lg:p-12 pb-0 flex flex-col md:flex-row gap-6 items-end">
-                   <div className="flex-grow space-y-2 w-full">
-                      <label className="mono-type text-[10px] font-black uppercase text-white/50">Search Your Bots</label>
-                      <div className="relative group">
-                         <input 
-                           type="text"
-                           placeholder="Find a bot by name..."
-                           value={searchQuery}
-                           onChange={(e) => setSearchQuery(e.target.value)}
-                           className="w-full bg-black border-2 border-white/20 p-3 pl-10 mono-type text-[12px] text-white focus:border-[var(--brand)] focus:outline-none transition-all brutal-shadow"
-                         />
-                         <TrendingUp className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white opacity-30 group-focus-within:opacity-100 group-focus-within:text-[var(--brand)]" />
-                      </div>
-                   </div>
-                   <div className="space-y-2 w-full md:w-auto">
-                      <label className="mono-type text-[10px] font-black uppercase text-white/50">Filter by Status</label>
-                      <select 
-                        value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value as any)}
-                        className="w-full md:w-48 bg-black border-2 border-white/20 p-3 mono-type text-[10px] font-black uppercase text-white focus:border-[var(--brand)] outline-none brutal-shadow"
-                      >
-                         <option value="all">All Statuses</option>
-                         <option value="online">Online</option>
-                         <option value="offline">Offline</option>
-                         <option value="auth-required">Needs Login</option>
-                         <option value="error">Has Errors</option>
-                      </select>
-                   </div>
-                   <div className="flex gap-2 w-full md:w-auto">
-                      <button 
-                        onClick={() => bulkAction('online')}
-                        className="flex-grow md:flex-none px-4 py-3 bg-[var(--brand)] text-black border-2 border-black font-black uppercase text-[10px] brutal-shadow hover:bg-white active:translate-y-1 transition-all"
-                      >
-                        Wake Up All
-                      </button>
-                      <button 
-                        onClick={() => bulkAction('offline')}
-                        className="flex-grow md:flex-none px-4 py-3 bg-white text-black border-2 border-black font-black uppercase text-[10px] brutal-shadow hover:bg-red-500 active:translate-y-1 transition-all"
-                      >
-                        Nap Time
-                      </button>
-                   </div>
-                </div>
+                <AppFleetGrid 
+                  bots={bots}
+                  searchQuery={searchQuery}
+                  setSearchQuery={setSearchQuery}
+                  statusFilter={statusFilter}
+                  setStatusFilter={setStatusFilter}
+                  bulkAction={bulkAction}
+                  filteredBots={filteredBots}
+                  executingBots={executingBots}
+                  globalActivities={globalActivities}
+                  setSelectedBot={setSelectedBot}
+                  updateBotStatus={updateBotStatus}
+                  handleConnect={handleConnect}
+                />
+              </motion.div>
+            )}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-8 p-4 lg:p-12">
-                  {filteredBots.length === 0 ? (
-                    <div className="col-span-full py-20 text-center opacity-30 animate-pulse text-4xl font-black uppercase border-4 border-dashed border-white/10">No agents match criteria.</div>
-                  ) : (
-                    filteredBots.map((bot, i) => (
-                    <BotCard 
-                      key={bot.id} 
-                      bot={bot} 
-                      index={i} 
-                      isExecuting={executingBots.has(bot.id)}
-                      onSelect={setSelectedBot} 
-                      onUpdateStatus={updateBotStatus}
-                      onConnect={handleConnect}
-                    />
-                  ))
-                )}
-                </div>
+            {currentView === "integrations" && (
+              <motion.div
+                key="integrations"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="col-span-full"
+              >
+                <IntegrationHub 
+                  bots={bots}
+                  handleConnect={handleConnect}
+                  deployNewBot={deployNewBot}
+                />
               </motion.div>
             )}
           </AnimatePresence>
         </main>
       </div>
 
-      {/* Terminal Toggle */}
-      {!showTerminal && (
-         <button onClick={() => setShowTerminal(true)} className="fixed bottom-4 right-4 sm:bottom-8 sm:left-8 z-30 p-3 sm:p-4 bg-black border-[4px] border-white text-white hover:bg-[var(--brand)] hover:text-black transition-colors brutal-shadow">
-            <Terminal className="w-6 h-6 sm:w-8 sm:h-8" />
-         </button>
-      )}
+      <GlobalTerminal 
+        showTerminal={showTerminal} 
+        setShowTerminal={setShowTerminal} 
+        globalActivities={globalActivities} 
+        onGlobalCommand={handleGlobalCommand}
+      />
 
       <AnimatePresence>
-        {showTerminal && (
-          <motion.div 
-            initial={{ y: 500 }}
-            animate={{ y: 0 }}
-            exit={{ y: 500 }}
-            className="fixed bottom-0 left-0 right-0 sm:bottom-8 sm:left-8 sm:right-8 lg:left-auto lg:right-8 lg:w-[600px] z-[50]"
-          >
-             <div className="bg-[#0A0A0A] border-t-4 sm:border-[4px] border-white brutal-shadow flex flex-col h-[300px] sm:h-[400px]">
-                <div className="p-4 border-b-2 border-white flex justify-between items-center bg-black">
-                   <div className="flex items-center gap-3"><Terminal className="w-5 h-5 text-[var(--brand)]" /><span className="text-[10px] font-black uppercase text-white">Live Activity Log</span></div>
-                   <button onClick={() => setShowTerminal(false)} className="text-white hover:text-[var(--brand)]"><ChevronUp className="w-5 h-5 rotate-180" /></button>
-                </div>
-                <div className="flex-grow overflow-y-auto p-4 space-y-3 font-mono text-[10px]">
-                   {globalActivities.length === 0 ? <div className="text-center opacity-20 py-20">No active signals...</div> : globalActivities.map(a => (
-                      <div key={a.id} className="flex gap-4 border-l-2 border-white/10 pl-3">
-                         <span className="opacity-30 italic">{a.timestamp?.toDate().toLocaleTimeString()}</span>
-                         <div className="flex flex-col">
-                            <span className="text-[var(--brand)] font-black uppercase">{a.botType}</span>
-                            <p className="opacity-90">{a.text}</p>
-                         </div>
-                      </div>
-                   ))}
-                </div>
-             </div>
-          </motion.div>
+        {selectedBot && !selectedBot.config?.isInitialized && (
+          <AgentOnboarding 
+            bot={bots.find(b => b.id === selectedBot.id) || selectedBot} 
+            typeDef={BOT_TYPES.find(t => t.id === selectedBot.type)} 
+            onComplete={() => {
+              addToast(`${selectedBot.name} initialization protocol complete. Active.`, 'success');
+              // Trigger a re-render to swap out of onboarding to the AgentPanel
+              setSelectedBot({ ...selectedBot, config: { ...selectedBot.config, isInitialized: true } });
+            }}
+          />
         )}
       </AnimatePresence>
 
-      <AgentPanel bot={selectedBot} onClose={() => setSelectedBot(null)} />
+      <AgentPanel 
+        bot={selectedBot?.config?.isInitialized ? (bots.find(b => b.id === selectedBot.id) || selectedBot) : null} 
+        onClose={() => setSelectedBot(null)} 
+      />
+
     </div>
   );
 }

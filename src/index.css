@@ -7,6 +7,69 @@
 }
 
 @layer base {
+  body::before {
+    content: " ";
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    right: 0;
+    background: linear-gradient(
+        rgba(18, 16, 16, 0) 50%, 
+        rgba(0, 0, 0, 0.25) 50%
+      ), 
+      linear-gradient(
+        90deg, 
+        rgba(255, 0, 0, 0.06), 
+        rgba(0, 255, 0, 0.02), 
+        rgba(0, 0, 255, 0.06)
+      );
+    z-index: 9999;
+    background-size: 100% 4px, 3px 100%;
+    pointer-events: none;
+    opacity: 0.15;
+  }
+
+  body::after {
+    content: " ";
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    right: 0;
+    background: rgba(18, 16, 16, 0.1);
+    opacity: 0;
+    z-index: 10000;
+    pointer-events: none;
+    animation: flicker 0.15s infinite;
+  }
+
+  @keyframes flicker {
+    0% { opacity: 0.27861; }
+    5% { opacity: 0.34769; }
+    10% { opacity: 0.23604; }
+    15% { opacity: 0.90626; }
+    20% { opacity: 0.18128; }
+    25% { opacity: 0.83891; }
+    30% { opacity: 0.65583; }
+    35% { opacity: 0.57807; }
+    40% { opacity: 0.26559; }
+    45% { opacity: 0.84693; }
+    50% { opacity: 0.96019; }
+    55% { opacity: 0.08523; }
+    60% { opacity: 0.71313; }
+    65% { opacity: 0.33441; }
+    70% { opacity: 0.26142; }
+    75% { opacity: 0.76392; }
+    80% { opacity: 0.22606; }
+    85% { opacity: 0.2534; }
+    90% { opacity: 0.18939; }
+    95% { opacity: 0.4407; }
+    100% { opacity: 0.46335; }
+  }
+
   :root {
     --bg: #0A0A0A;
     --ink: #FAFAFA;
@@ -38,10 +101,22 @@
   /* Brutalist utilities */
   .brutal-shadow {
     box-shadow: 6px 6px 0px 0px var(--brand);
+    transition: all 0.2s cubic-bezier(0.25, 1, 0.5, 1);
+  }
+  
+  .brutal-shadow:hover, .brutal-shadow:focus-within {
+     box-shadow: 10px 10px 0px 0px var(--brand);
+     transform: translate(-4px, -4px);
   }
   
   .brutal-shadow-red {
     box-shadow: 6px 6px 0px 0px var(--accent);
+    transition: all 0.2s cubic-bezier(0.25, 1, 0.5, 1);
+  }
+
+  .brutal-shadow-red:hover {
+     box-shadow: 10px 10px 0px 0px var(--accent);
+     transform: translate(-4px, -4px);
   }
 
   .brutal-border {
@@ -131,6 +206,19 @@
   @apply bg-[var(--brand)];
 }
 
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  @apply bg-black/10 border border-black;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  @apply bg-black/60;
+}
+
 @keyframes glitch {
   0% { transform: translate(0) }
   20% { transform: translate(-2px, 2px) }
@@ -148,6 +236,21 @@
   overflow: hidden;
   white-space: nowrap;
   width: 100%;
+}
+
+@keyframes scanline {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100%); }
+}
+
+.scanline-overlay {
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(212, 255, 0, 0.1) 50%,
+    transparent 100%
+  );
+  animation: scanline 2s linear infinite;
 }
 
 @keyframes marquee {

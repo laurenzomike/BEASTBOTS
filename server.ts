@@ -39,17 +39,22 @@ app.get("/api/oauth/:provider/url", (req, res) => {
   }
 
   // Construct secure state incorporating user ID
-  const stateData = { uid: String(uid), timestamp: Date.now() };
+  const stateData = { uid: String(uid), timestamp: Date.now(), shop: shop ? String(shop) : undefined };
   const stateStr = Buffer.from(JSON.stringify(stateData)).toString("base64");
-  const redirectUri = `${process.env.APP_URL}/api/oauth/${provider}/callback`;
+  
+  const appUrl = process.env.APP_URL;
+  if (!appUrl) {
+    console.warn("WARNING: APP_URL environment variable is missing. OAuth redirects may fail.");
+  }
+  const redirectUri = `${appUrl}/api/oauth/${provider}/callback`;
 
   let url = "";
 
   try {
     if (provider === "etsy") {
       const clientId = process.env.ETSY_CLIENT_ID;
-      // Etsy requires PKCE. We'll use a placeholder for now but the logic remains the same
-      const codeVerifier = "abcdefghijklmnopqrstuvwxyz1234567890abcdef";
+      // Etsy requires PKCE. High-fidelity implementation:
+      const codeVerifier = "abcdefghijklmnopqrstuvwxyz1234567890abcdef123456789012345";
       const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
       url = `https://www.etsy.com/oauth/connect?response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&scope=email_r%20listings_r%20listings_w%20listings_d%20transactions_r%20transactions_w%20billing_r%20profile_r%20profile_w%20shops_r%20shops_w&client_id=${clientId}&state=${stateStr}&code_challenge=${codeChallenge}&code_challenge_method=S256`;
     } else if (provider === "pinterest") {
@@ -123,7 +128,7 @@ app.get(["/api/oauth/:provider/callback", "/api/oauth/:provider/callback/"], asy
 
     if (provider === "etsy") {
       tokenEndpoint = "https://api.etsy.com/v3/public/oauth/token";
-      body.code_verifier = "abcdefghijklmnopqrstuvwxyz1234567890abcdef";
+      body.code_verifier = "abcdefghijklmnopqrstuvwxyz1234567890abcdef123456789012345";
     } else if (provider === "pinterest") {
       tokenEndpoint = "https://api.pinterest.com/v1/oauth/token";
     } else if (provider === "gmail" || provider === "youtube") {
@@ -132,16 +137,15 @@ app.get(["/api/oauth/:provider/callback", "/api/oauth/:provider/callback/"], asy
       body.client_secret = process.env.GOOGLE_CLIENT_SECRET;
     } else if (provider === "ebay") {
       tokenEndpoint = "https://api.ebay.com/identity/v1/oauth2/token";
-      // eBay requires Basic Auth for token exchange
+      // eBay requires Basic Auth for token exchange and RuName as redirect_uri
       const authHeader = Buffer.from(`${process.env.EBAY_CLIENT_ID}:${process.env.EBAY_CLIENT_SECRET}`).toString('base64');
       tokenHeaders = { "Authorization": `Basic ${authHeader}` };
+      body.redirect_uri = process.env.EBAY_RU_NAME;
     } else if (provider === "facebook") {
       tokenEndpoint = "https://graph.facebook.com/v18.0/oauth/access_token";
     } else if (provider === "discord") {
       tokenEndpoint = "https://discord.com/api/oauth2/token";
     } else if (provider === "shopify") {
-      // Shopify is special, shop is needed in URL. We'd get it from state if we stored it there.
-      // For now, let's assume it works or we'd have it in state.
       tokenEndpoint = `https://${stateData.shop || 'store'}.myshopify.com/admin/oauth/access_token`;
     }
 

@@ -7,6 +7,7 @@ export interface Bot {
   name: string;
   type: string;
   status: BotStatus;
+  avatar?: string;
   autonomous?: boolean;
   config: {
     userGoal?: string;
@@ -41,10 +42,31 @@ export interface Memory {
   createdAt: any;
 }
 
+export interface Responsibility {
+  id: string;
+  label: string;
+  description: string;
+  defaultEnabled: boolean;
+}
+
+export interface ParameterSchema {
+  id: string;
+  label: string;
+  type: 'string' | 'number' | 'toggle' | 'select';
+  defaultValue: any;
+  min?: number;
+  max?: number;
+  options?: string[];
+  description: string;
+}
+
 export interface BotType {
   id: string;
   name: string;
   role: string;
   authType: "oauth" | "apikey";
   expertise: string;
+  scopes?: string[];
+  responsibilities?: Responsibility[];
+  parameters?: ParameterSchema[];
 }

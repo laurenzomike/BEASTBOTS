@@ -12,11 +12,23 @@ export const AuditView: React.FC<AuditViewProps> = ({ bots, activities }) => {
   const strategicAnalysis = activities.filter(a => a.type === 'analysis');
   const totalWins = bots.reduce((acc, curr) => acc + (curr.config?.winCount || 0), 0);
 
+  const [chartMode, setChartMode] = React.useState<'activity' | 'efficiency'>('activity');
+
+  const errors = activities.filter(a => a.type === 'error').length;
+  const reliability = activities.length > 0 ? Math.max(0, 100 - (errors / activities.length * 100)).toFixed(1) : "100";
+
   // Prepare data for activity by bot type
   const botStats = activities.reduce((acc: any, curr) => {
     acc[curr.botType] = (acc[curr.botType] || 0) + 1;
     return acc;
   }, {});
+
+  const efficiencyData = bots.map(b => ({
+    name: b.type,
+    wins: b.config?.winCount || 0,
+    activity: botStats[b.type] || 0,
+    ratio: botStats[b.type] ? ((b.config?.winCount || 0) / botStats[b.type] * 100).toFixed(1) : 0
+  })).sort((a, b) => Number(b.ratio) - Number(a.ratio));
 
   const chartData = Object.entries(botStats).map(([name, value]) => ({ name, value }));
 
@@ -29,21 +41,21 @@ export const AuditView: React.FC<AuditViewProps> = ({ bots, activities }) => {
             <ShieldAlert className="w-12 h-12 text-white" />
           </div>
           <div>
-            <h2 className="font-display text-4xl md:text-6xl font-black uppercase text-white tracking-widest leading-none">At a Glance</h2>
-            <p className="font-mono text-[10px] text-[var(--brand)] font-black uppercase mt-2 tracking-[0.3em]">A quick report on how your bots are doing.</p>
+            <h2 className="font-display text-4xl md:text-6xl font-black uppercase text-white tracking-widest leading-none">Fleet Audit</h2>
+            <p className="font-mono text-[10px] text-[var(--brand)] font-black uppercase mt-2 tracking-[0.3em]">Institutional grade analysis of autonomous agent performance.</p>
           </div>
         </div>
         <div className="flex flex-wrap gap-4">
           <div className="bg-black border-2 border-white/20 p-4 brutal-shadow text-center min-w-[120px] flex-grow md:flex-grow-0">
              <span className="block text-[var(--brand)] text-2xl font-black">{bots.filter(b => b.status === 'online').length}</span>
-             <span className="block text-[10px] text-white/50 uppercase font-bold text-nowrap">Active Bots</span>
+             <span className="block text-[10px] text-white/50 uppercase font-bold text-nowrap">Active Units</span>
           </div>
           <div className="bg-black border-2 border-white/20 p-4 brutal-shadow text-center min-w-[120px] flex-grow md:flex-grow-0">
             <span className="block text-[var(--accent)] text-2xl font-black">{totalWins}</span>
             <span className="block text-[10px] text-white/50 uppercase font-bold text-nowrap">Total Wins</span>
           </div>
           <div className="bg-black border-2 border-white/20 p-4 brutal-shadow text-center min-w-[120px] flex-grow md:flex-grow-0">
-            <span className="block text-white text-2xl font-black">95%</span>
+            <span className="block text-white text-2xl font-black">{reliability}%</span>
             <span className="block text-[10px] text-white/50 uppercase font-bold text-nowrap">Reliability</span>
           </div>
         </div>
@@ -53,53 +65,96 @@ export const AuditView: React.FC<AuditViewProps> = ({ bots, activities }) => {
         <div className="bg-white p-6 border-[4px] border-black brutal-shadow group hover:scale-[1.02] transition-all">
           <span className="mono-type text-[9px] font-black uppercase opacity-60 block mb-2 text-black">Bot Memory</span>
           <span className="text-4xl font-sans font-black text-black tracking-tighter">SECURED</span>
-          <p className="mt-3 font-mono text-[9px] font-bold text-black opacity-60 leading-tight">Bot data is safely separated and private.</p>
+          <p className="mt-3 font-mono text-[9px] font-bold text-black opacity-60 leading-tight">Bot context is isolated per neural link.</p>
         </div>
         <div className="bg-[var(--brand)] p-6 border-[4px] border-black brutal-shadow group hover:scale-[1.02] transition-all">
           <span className="mono-type text-[9px] font-black uppercase opacity-60 block mb-2 text-black">Goal Progress</span>
-          <span className="text-4xl font-sans font-black text-black tracking-tighter">ON TRACK</span>
-          <p className="mt-3 font-mono text-[9px] font-bold text-black opacity-60 leading-tight">Bots are working towards your group goals.</p>
+          <span className="text-4xl font-sans font-black text-black tracking-tighter">PHASE_1</span>
+          <p className="mt-3 font-mono text-[9px] font-bold text-black opacity-60 leading-tight">Fleet is currently optimizing towards $ directive.</p>
         </div>
-        <div className="bg-black p-6 border-[4px] border-white brutal-shadow-red group hover:scale-[1.02] transition-all">
-          <span className="mono-type text-[9px] font-black uppercase opacity-60 block mb-2 text-white">System Status</span>
-          <span className="text-4xl font-sans font-black text-[#FF2E00] tracking-tighter">STABLE</span>
-          <p className="mt-3 font-mono text-[9px] font-bold text-white/60 leading-tight">System is healthy and checking for updates.</p>
+        <div className="bg-black p-6 border-[4px] border-white brutal-shadow-red group hover:scale-[1.02] transition-all text-white">
+          <span className="mono-type text-[9px] font-black uppercase opacity-60 block mb-2">Sync Health</span>
+          <span className="text-4xl font-sans font-black text-[#FF2E00] tracking-tighter">NOMINAL</span>
+          <p className="mt-3 font-mono text-[9px] font-bold opacity-60 leading-tight">All systems functioning within defined parameters.</p>
         </div>
         <div className="bg-[var(--accent)] p-6 border-[4px] border-black brutal-shadow group hover:scale-[1.02] transition-all">
-          <span className="mono-type text-[9px] font-black uppercase opacity-60 block mb-2 text-white">App Connections</span>
-          <span className="text-4xl font-sans font-black text-white tracking-tighter">ACTIVE</span>
-          <p className="mt-3 font-mono text-[9px] font-bold text-white/60 leading-tight">{bots.filter(b => b.status === "online").length} apps are correctly linked.</p>
+          <span className="mono-type text-[9px] font-black uppercase opacity-60 block mb-2 text-white">Grid Coverage</span>
+          <span className="text-4xl font-sans font-black text-white tracking-tighter">GLOBAL</span>
+          <p className="mt-3 font-mono text-[9px] font-bold text-white/60 leading-tight">{bots.filter(b => b.status === "online").length}/14 nodes currently reporting live.</p>
         </div>
       </div>
       
       <div className="bg-[#0A0A0A] border-[4px] border-white p-8 brutal-shadow">
-        <div className="flex items-center gap-4 mb-8">
-           <BarChart3 className="w-8 h-8 text-[var(--brand)]" />
-           <h3 className="font-display text-2xl font-black uppercase tracking-tighter text-white">Activity by Bot Type</h3>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 mb-8">
+           <div className="flex items-center gap-4">
+              <BarChart3 className="w-8 h-8 text-[var(--brand)]" />
+              <h3 className="font-display text-2xl font-black uppercase tracking-tighter text-white">Performance Analytics</h3>
+           </div>
+           <div className="flex bg-white/5 border-2 border-white/10 p-1">
+              <button 
+                onClick={() => setChartMode('activity')}
+                className={`px-4 py-2 text-[9px] font-black uppercase transition-all ${chartMode === 'activity' ? 'bg-[var(--brand)] text-black' : 'text-white/40 hover:text-white'}`}
+              >
+                Log Volume
+              </button>
+              <button 
+                onClick={() => setChartMode('efficiency')}
+                className={`px-4 py-2 text-[9px] font-black uppercase transition-all ${chartMode === 'efficiency' ? 'bg-[var(--brand)] text-black' : 'text-white/40 hover:text-white'}`}
+              >
+                Win Efficiency
+              </button>
+           </div>
         </div>
-        <div className="h-[300px] w-full">
+
+        <div className="h-[400px] w-full">
            <ResponsiveContainer width="100%" height="100%">
-             <BarChart data={chartData}>
-               <XAxis 
-                dataKey="name" 
-                stroke="#666" 
-                fontSize={10} 
-                tickFormatter={(val) => val.toUpperCase()}
-                axisLine={false}
-                tickLine={false}
-               />
-               <YAxis stroke="#666" fontSize={10} axisLine={false} tickLine={false} />
-               <Tooltip 
-                 contentStyle={{ backgroundColor: '#000', border: '2px solid #D4FF00', borderRadius: '0' }}
-                 itemStyle={{ color: '#D4FF00', fontSize: '12px', fontWeight: 'bold' }}
-                 cursor={{ fill: 'rgba(255,255,255,0.05)' }}
-               />
-               <Bar dataKey="value" fill="#D4FF00">
-                  {chartData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={index % 2 === 0 ? '#D4FF00' : '#FF2E00'} />
-                  ))}
-               </Bar>
-             </BarChart>
+             {chartMode === 'activity' ? (
+                <BarChart data={chartData}>
+                  <XAxis 
+                    dataKey="name" 
+                    stroke="#666" 
+                    fontSize={10} 
+                    tickFormatter={(val) => val.toUpperCase()}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis stroke="#666" fontSize={10} axisLine={false} tickLine={false} />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#000', border: '2px solid #D4FF00', borderRadius: '0', color: '#fff' }}
+                    itemStyle={{ color: '#D4FF00', fontSize: '12px', fontWeight: 'bold' }}
+                    cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+                  />
+                  <Bar dataKey="value" fill="#D4FF00">
+                      {chartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={index % 2 === 0 ? '#D4FF00' : '#FF2E00'} />
+                      ))}
+                  </Bar>
+                </BarChart>
+             ) : (
+                <BarChart data={efficiencyData} layout="vertical">
+                  <XAxis type="number" stroke="#666" fontSize={10} axisLine={false} tickLine={false} />
+                  <YAxis 
+                    dataKey="name" 
+                    type="category" 
+                    stroke="#666" 
+                    fontSize={10} 
+                    tickFormatter={(val) => val.toUpperCase()} 
+                    axisLine={false}
+                    tickLine={false}
+                    width={80}
+                  />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#000', border: '2px solid #D4FF00', borderRadius: '0', color: '#fff' }}
+                    itemStyle={{ color: '#D4FF00', fontSize: '12px', fontWeight: 'bold' }}
+                    cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+                  />
+                  <Bar dataKey="ratio" name="Efficiency %" fill="#00D1FF" radius={[0, 4, 4, 0]}>
+                    {efficiencyData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={Number(entry.ratio) > 5 ? '#D4FF00' : '#444'} />
+                    ))}
+                  </Bar>
+                </BarChart>
+             )}
            </ResponsiveContainer>
         </div>
       </div>

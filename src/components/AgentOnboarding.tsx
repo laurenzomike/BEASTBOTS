@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   Terminal, 
   Target, 
@@ -8,11 +8,14 @@ import {
   Zap, 
   ChevronRight, 
   BrainCircuit,
-  ShieldCheck
+  ShieldCheck,
+  Wand2
 } from 'lucide-react';
 import { Bot, BotType } from '../types';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
+import { PLATFORM_WORKFLOWS } from '../constants';
+import { cn } from '../lib/utils';
 
 interface Props {
   bot: Bot;
@@ -26,26 +29,62 @@ export const AgentOnboarding: React.FC<Props> = ({ bot, typeDef, onComplete }) =
   const [config, setConfig] = useState({
     winCondition: bot.config?.winCondition || '',
     systemDirective: bot.config?.systemDirective || '',
-    schedule: bot.config?.schedule || '24/7 Monitoring',
-    responsibilities: bot.config?.responsibilities?.join(', ') || ''
+    schedule: bot.config?.schedule || '24/7 Continuous',
+    responsibilities: bot.config?.responsibilities || typeDef?.responsibilities?.filter(r => r.defaultEnabled).map(r => r.id) || [],
+    parameters: bot.config?.parameters || typeDef?.parameters?.reduce((acc, p) => ({ ...acc, [p.id]: p.defaultValue }), {}) || {}
   });
+
+  const generateSuggestions = (fieldId: string) => {
+    const platformClass = bot.type;
+    switch (fieldId) {
+      case 'winCondition':
+        if (['alpaca', 'coinbase'].includes(platformClass)) return ['Daily ROI > 2%', '5 profitable trades closed', 'Zero liquidations'];
+        if (['kalshi', 'polymarket'].includes(platformClass)) return ['Predict 3 events correctly', 'Yield > 5% on active hedges', 'Maintain completely market-neutral book'];
+        if (['shopify', 'amazon', 'etsy', 'ebay'].includes(platformClass)) return ['Increase weekly sales by 10%', 'Maintain 5-star review average', 'Zero unresolved support tickets by EOD'];
+        if (['gmail', 'discord'].includes(platformClass)) return ['Inbox zero by 5PM', 'Average response time < 2 mins', 'Zero unread @mentions'];
+        if (['youtube', 'facebook', 'pinterest'].includes(platformClass)) return ['Reach 10k impressions', 'Achieve 5%+ Ad CTR', '100 new followers gained this week'];
+        if (platformClass === 'botboss') return ['100% Fleet Uptime', 'Zero unhandled errors in system logs'];
+        return ['High positive engagement', 'Complete daily processing with zero errors'];
+      case 'systemDirective':
+        return [
+          'ACT AGGRESSIVELY: Prioritize speed, volume, and scale over edge-case precision.',
+          'ACT PRESERVINGLY: Prioritize capital, brand safety, and extreme precision above all else.',
+          'ACT EMPATHETICALLY: Be a highly-professional, polite, and accommodating representative.'
+        ];
+      case 'schedule':
+        return ['24/7 Continuous Monitoring', 'Mon-Fri 9AM to 5PM EST', 'Nightly Batch at Midnight', 'Weekends Only'];
+      case 'scope':
+        const actions = PLATFORM_WORKFLOWS[platformClass]?.actions || [];
+        return actions.length > 0 ? [actions.join(', ')] : ['Monitor, Analyze, Execute'];
+      default:
+        return [];
+    }
+  };
 
   const steps = [
     {
       id: 'vision',
       title: 'Success Directive',
       icon: Target,
-      label: 'What counts as a "Win" for this agent?',
-      description: 'Defined victory conditions ensure the agent stays focused on high-yield outcomes.',
+      label: `What counts as a "Win" for your ${typeDef?.name || 'Agent'}?`,
+      description: `Given their expertise (${typeDef?.expertise || 'general operations'}), what target should they aim for?`,
       field: 'winCondition',
       placeholder: 'e.g. Sales > $500, Resolved ticket without escalation...'
     },
     {
+      id: 'protocol',
+      title: 'Executive Protocol',
+      icon: ClipboardList,
+      label: 'Operational Scopes',
+      description: `Select the specialized duties this assistant is authorized to manage.`,
+      field: 'responsibilities'
+    },
+    {
       id: 'behavior',
-      title: 'Command Protocol',
+      title: 'Action Engine',
       icon: Terminal,
-      label: 'How should this executive behave?',
-      description: 'Inject custom operational logic, tone, and refusal criteria.',
+      label: 'Operational Personality',
+      description: 'Inject custom logic, tone, and boundaries into the decision engine.',
       field: 'systemDirective',
       placeholder: 'e.g. Be technical and precise. Refuse low-margin requests...'
     },
@@ -53,19 +92,10 @@ export const AgentOnboarding: React.FC<Props> = ({ bot, typeDef, onComplete }) =
       id: 'schedule',
       title: 'Operational Schedule',
       icon: Clock,
-      label: 'When is this agent on duty?',
-      description: 'Set maintenance windows or active duty cycles.',
+      label: 'When is this agent authorized to act?',
+      description: 'Set maintenance windows, active duty cycles, or continuous monitoring.',
       field: 'schedule',
-      placeholder: 'e.g. Mon-Fri 9-5, Daily at Midnight...'
-    },
-    {
-      id: 'scope',
-      title: 'Executive Scope',
-      icon: ClipboardList,
-      label: 'List core responsibilities',
-      description: 'Separate with commas. These are the pillars of the agent\'s autonomy.',
-      field: 'responsibilities',
-      placeholder: 'e.g. Inventory check, Customer outreach, Trend analysis...'
+      placeholder: 'e.g. Mon-Fri 9-5, Daily at Midnight, 24/7...'
     }
   ];
 
@@ -77,7 +107,6 @@ export const AgentOnboarding: React.FC<Props> = ({ bot, typeDef, onComplete }) =
         config: {
           ...bot.config,
           ...config,
-          responsibilities: config.responsibilities.split(',').map(s => s.trim()).filter(Boolean),
           isInitialized: true
         },
         updatedAt: serverTimestamp()
@@ -91,9 +120,10 @@ export const AgentOnboarding: React.FC<Props> = ({ bot, typeDef, onComplete }) =
   };
 
   const currentStep = steps[step];
+  const suggestions = generateSuggestions(currentStep.id);
 
   return (
-    <div className="min-h-[600px] bg-black text-white p-8 md:p-16 flex flex-col justify-center items-center relative overflow-hidden">
+    <div className="min-h-[600px] h-full bg-black text-white p-4 sm:p-8 md:p-16 flex flex-col justify-center items-center relative overflow-hidden">
       {/* Background Decor */}
       <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
         <div className="absolute top-10 left-10 w-64 h-64 border-[1px] border-white rotate-45" />
@@ -101,93 +131,177 @@ export const AgentOnboarding: React.FC<Props> = ({ bot, typeDef, onComplete }) =
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] border-[1px] border-white/20 rounded-full" />
       </div>
 
-      <div className="w-full max-w-2xl relative z-10">
-        <header className="mb-12 text-center">
+      <div className="w-full max-w-3xl relative z-10">
+        <header className="mb-8 md:mb-12 text-center">
             <div className="inline-flex items-center gap-2 bg-[#D4FF00] text-black px-4 py-1 font-black uppercase text-[10px] mb-4 brutal-shadow">
                 <BrainCircuit className="w-4 h-4 text-black" />
                 Initialization Mode
             </div>
-            <h2 className="display-type text-5xl font-black uppercase tracking-tighter leading-none mb-2">
+            <h2 className="display-type text-4xl sm:text-5xl font-black uppercase tracking-tighter leading-none mb-2">
                 Train your {typeDef?.name || 'Agent'}
             </h2>
-            <p className="text-white/60 font-mono text-xs uppercase tracking-widest">
-                Executive Onboarding | Protocol {step + 1} of {steps.length}
+            <p className="text-[#D4FF00] font-mono text-xs uppercase tracking-widest bg-black/50 p-2 inline-block">
+                 Role: {typeDef?.role || 'Specialist'}
             </p>
         </header>
 
-        <motion.div 
-            key={step}
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="bg-[#1A1A1A] border-[4px] border-white p-8 brutal-shadow relative overflow-hidden"
-        >
-            <div className="absolute top-0 right-0 p-4 opacity-10">
-                <currentStep.icon size={120} />
-            </div>
+        <AnimatePresence mode="wait">
+          <motion.div 
+              key={step}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.3 }}
+              className="bg-[#1A1A1A] border-4 border-white p-6 sm:p-8 brutal-shadow relative overflow-hidden"
+          >
+              <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+                  <currentStep.icon size={160} />
+              </div>
 
-            <div className="relative z-10 space-y-6">
-                <div className="flex items-center gap-4">
-                    <div className="p-3 bg-white text-black brutal-shadow">
-                        <currentStep.icon className="w-8 h-8" />
-                    </div>
-                    <div>
-                        <h3 className="text-2xl font-black uppercase tracking-tight text-[#D4FF00]">{currentStep.title}</h3>
-                        <p className="text-[10px] mono-type uppercase opacity-60 max-w-md">{currentStep.description}</p>
-                    </div>
-                </div>
+              <div className="relative z-10 space-y-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                      <div className="p-3 bg-white text-black brutal-shadow self-start sm:self-auto">
+                          <currentStep.icon className="w-8 h-8" />
+                      </div>
+                      <div>
+                          <h3 className="text-2xl font-black uppercase tracking-tight text-[#D4FF00]">{currentStep.title}</h3>
+                          <p className="text-xs font-mono uppercase opacity-70 mt-1">{currentStep.description}</p>
+                      </div>
+                  </div>
 
-                <div className="space-y-4">
-                    <label className="block mono-type text-[11px] font-black uppercase text-white/80">{currentStep.label}</label>
-                    <textarea
-                        autoFocus
-                        value={config[currentStep.field as keyof typeof config]}
-                        onChange={(e) => setConfig({ ...config, [currentStep.field]: e.target.value })}
-                        placeholder={currentStep.placeholder}
-                        className="w-full bg-black border-[3px] border-white p-4 font-mono text-xs text-white focus:border-[#D4FF00] outline-none min-h-[120px] transition-colors"
-                    />
-                </div>
+                  <div className="space-y-4">
+                      <label className="block font-mono text-sm font-black uppercase text-white">{currentStep.label}</label>
+                      
+                      {currentStep.id === 'protocol' ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                           {typeDef?.responsibilities?.map(resp => (
+                             <button
+                               key={resp.id}
+                               onClick={() => {
+                                 const current = config.responsibilities;
+                                 const exists = current.includes(resp.id);
+                                 setConfig({
+                                   ...config,
+                                   responsibilities: exists 
+                                     ? current.filter((id: string) => id !== resp.id)
+                                     : [...current, resp.id]
+                                 });
+                               }}
+                               className={cn(
+                                 "p-4 border-4 text-left transition-all brutal-shadow",
+                                 config.responsibilities.includes(resp.id)
+                                   ? "bg-[#D4FF00] border-black text-black"
+                                   : "bg-black border-white/20 text-white opacity-60 hover:opacity-100"
+                               )}
+                             >
+                               <div className="text-[11px] font-black uppercase">{resp.label}</div>
+                               <div className="text-[8px] mono-type mt-1 opacity-70">{resp.description}</div>
+                             </button>
+                           ))}
+                        </div>
+                      ) : (
+                        <textarea
+                            autoFocus
+                            value={config[currentStep.field as keyof typeof config] as string}
+                            onChange={(e) => setConfig({ ...config, [currentStep.field]: e.target.value })}
+                            placeholder={currentStep.placeholder}
+                            className="w-full bg-black border-4 border-white p-4 font-mono text-sm text-white focus:border-[#D4FF00] outline-none min-h-[120px] transition-colors resize-none brutal-shadow"
+                        />
+                      )}
+                      
+                      {currentStep.id === 'behavior' && typeDef?.parameters?.length ? (
+                        <div className="mt-8 pt-8 border-t border-white/10 space-y-4">
+                            <label className="block font-mono text-sm font-black uppercase text-[#D4FF00]">Initial Tuning</label>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                               {typeDef.parameters.map(param => (
+                                 <div key={param.id} className="space-y-2">
+                                    <div className="flex justify-between text-[10px] font-black uppercase tracking-tighter">
+                                       <span>{param.label}</span>
+                                       <span className="text-[#D4FF00]">{config.parameters[param.id]}</span>
+                                    </div>
+                                    <input 
+                                       type={param.type === 'number' ? 'range' : 'text'}
+                                       min={param.type === 'number' ? 0 : undefined}
+                                       max={param.type === 'number' ? 1000 : undefined}
+                                       value={config.parameters[param.id] || param.defaultValue}
+                                       onChange={(e) => setConfig({
+                                         ...config,
+                                         parameters: { ...config.parameters, [param.id]: e.target.value }
+                                       })}
+                                       className={cn(
+                                         "w-full bg-black border-2 border-white/20 p-2 text-xs font-mono text-white outline-none focus:border-[#D4FF00]",
+                                         param.type === 'number' && "h-1 appearance-none bg-white/10 accent-[#D4FF00]"
+                                       )}
+                                    />
+                                 </div>
+                               ))}
+                            </div>
+                        </div>
+                      ) : null}
+                      
+                      {suggestions.length > 0 && currentStep.id !== 'protocol' && (
+                        <div className="space-y-2 mt-4">
+                           <div className="flex items-center gap-2 text-[#D4FF00]">
+                             <Wand2 className="w-3 h-3" />
+                             <span className="font-mono text-[9px] uppercase font-black">AI Suggestions:</span>
+                           </div>
+                           <div className="flex flex-wrap gap-2">
+                             {suggestions.map((s, idx) => (
+                               <button
+                                 key={idx}
+                                 onClick={() => setConfig({ ...config, [currentStep.field]: s })}
+                                 className="px-3 py-1.5 bg-white/10 border border-white/20 hover:bg-[#D4FF00] hover:text-black hover:border-black font-mono text-[10px] transition-all text-left"
+                               >
+                                 {s}
+                               </button>
+                             ))}
+                           </div>
+                        </div>
+                      )}
+                  </div>
 
-                <div className="pt-6 flex justify-between items-center">
-                    <div className="flex gap-2">
-                        {steps.map((_, i) => (
-                            <div 
-                                key={i} 
-                                className={`w-3 h-3 border-2 border-white ${step === i ? 'bg-[#D4FF00]' : i < step ? 'bg-white' : 'bg-transparent'}`} 
-                            />
-                        ))}
-                    </div>
+                  <div className="pt-8 flex flex-col-reverse sm:flex-row justify-between items-center gap-6">
+                      <div className="flex gap-3">
+                          {steps.map((_, i) => (
+                              <div 
+                                  key={i} 
+                                  className={`w-3 h-3 border-2 border-white transition-all ${step === i ? 'bg-[#D4FF00] scale-125' : i < step ? 'bg-white' : 'bg-transparent'}`} 
+                              />
+                          ))}
+                      </div>
 
-                    <div className="flex gap-4">
-                        {step > 0 && (
-                            <button 
-                                onClick={() => setStep(step - 1)}
-                                className="px-6 py-2 border-2 border-white font-black uppercase text-xs hover:bg-white hover:text-black transition-all"
-                            >
-                                Back
-                            </button>
-                        )}
-                        <button 
-                            disabled={loading}
-                            onClick={step === steps.length - 1 ? handleComplete : () => setStep(step + 1)}
-                            className="px-6 py-2 bg-[#D4FF00] text-black font-black uppercase text-xs brutal-shadow hover:translate-x-1 hover:-translate-y-1 transition-all flex items-center gap-2"
-                        >
-                            {step === steps.length - 1 ? (loading ? 'Initializing...' : 'Complete Setup') : 'Next Protocol'}
-                            <ChevronRight className="w-4 h-4" />
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </motion.div>
+                      <div className="flex w-full sm:w-auto gap-4">
+                          {step > 0 && (
+                              <button 
+                                  onClick={() => setStep(step - 1)}
+                                  className="flex-1 sm:flex-none px-6 py-3 border-4 border-white font-black uppercase text-sm hover:bg-white hover:text-black transition-all"
+                              >
+                                  Back
+                              </button>
+                          )}
+                          <button 
+                              disabled={loading}
+                              onClick={step === steps.length - 1 ? handleComplete : () => setStep(step + 1)}
+                              className="flex-1 sm:flex-none px-6 py-3 bg-[#D4FF00] text-black font-black uppercase text-sm brutal-shadow hover:translate-x-1 hover:-translate-y-1 transition-all flex justify-center items-center gap-2"
+                          >
+                              {step === steps.length - 1 ? (loading ? 'Initializing...' : 'Engage Protocol') : 'Next'}
+                              <ChevronRight className="w-5 h-5" />
+                          </button>
+                      </div>
+                  </div>
+              </div>
+          </motion.div>
+        </AnimatePresence>
 
-        <footer className="mt-12 text-center space-y-4">
+        <footer className="mt-8 text-center">
             <div className="flex justify-center gap-8 opacity-40">
                 <div className="flex items-center gap-2">
                     <ShieldCheck className="w-4 h-4" />
-                    <span className="mono-type text-[9px] uppercase">Secure Training</span>
+                    <span className="mono-type text-[10px] uppercase font-bold">Secure Protocol</span>
                 </div>
                 <div className="flex items-center gap-2">
                     <Zap className="w-4 h-4" />
-                    <span className="mono-type text-[9px] uppercase">Instant Activation</span>
+                    <span className="mono-type text-[10px] uppercase font-bold">Real-Time</span>
                 </div>
             </div>
         </footer>
