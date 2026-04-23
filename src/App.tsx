@@ -114,7 +114,7 @@ export default function App() {
       Keep it professional, technical, and data-driven. Use the '${persona}' persona.`;
 
       const response = await ai.models.generateContent({
-        model: "gemini-3.1-pro-preview",
+        model: "gemini-2.5-pro",
         contents: prompt,
         config: { temperature: 0.7 }
       });
@@ -272,7 +272,7 @@ Output format:
 Keep it to 1-2 authoritative sentences.`;
 
       const response = await ai.models.generateContent({
-        model: "gemini-3.1-pro-preview",
+        model: "gemini-2.5-pro",
         contents: prompt,
         config: {
           systemInstruction: `You are the ${bot.type} elite Bot. Decisive and technical. 

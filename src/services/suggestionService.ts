@@ -40,7 +40,7 @@ export async function suggestWorkflows(botType: string, userGoal: string, curren
 
   try {
     const result = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-2.5-flash",
       contents: prompt,
       config: { 
         temperature: 0.8,
