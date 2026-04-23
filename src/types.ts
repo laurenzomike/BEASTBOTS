@@ -1,6 +1,34 @@
 import { User } from "firebase/auth";
+import { FieldValue } from "firebase/firestore";
 
 export type BotStatus = "online" | "offline" | "error" | "auth-required";
+
+export interface Workflow {
+  id: string;
+  name?: string;
+  trigger: string;
+  action: string;
+  status?: "active" | "paused";
+}
+
+export interface BotConfig {
+  userGoal?: string;
+  winCondition?: string;
+  systemDirective?: string;
+  winCount?: number | FieldValue;
+  schedule?: string;
+  scheduleType?: string;
+  intervalMs?: number;
+  responsibilities?: string[];
+  isInitialized?: boolean;
+  workflows?: Workflow[];
+  strategy?: string;
+  parameters?: Record<string, string>;
+  autoResponseEnabled?: boolean;
+  responseTone?: string;
+  responseSignature?: string;
+  temperature?: number;
+}
 
 export interface Bot {
   id: string;
@@ -8,16 +36,7 @@ export interface Bot {
   type: string;
   status: BotStatus;
   autonomous?: boolean;
-  config: {
-    userGoal?: string;
-    winCondition?: string;
-    systemDirective?: string;
-    winCount?: number;
-    schedule?: string;
-    responsibilities?: string[];
-    isInitialized?: boolean;
-    [key: string]: any;
-  };
+  config: BotConfig;
   userId?: string;
   createdAt?: any;
   updatedAt?: any;
