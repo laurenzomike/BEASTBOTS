@@ -12,14 +12,12 @@ import { AgentPanel } from "./components/AgentPanel";
 import { AgentOnboarding } from "./components/AgentOnboarding";
 import { BotCard } from "./components/BotCard";
 import { AuditView } from "./components/AuditView";
-import { GoogleGenAI } from "@google/genai";
 import { handleBotErrorTransition } from "./lib/errorUtils";
 import { getRelevantMemories, saveMemory } from "./services/memoryService";
 import { Bot, Activity } from "./types";
 import { BOT_TYPES } from "./constants";
 import { motion, AnimatePresence } from "motion/react";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 interface Toast {
   id: string;
@@ -82,11 +80,7 @@ export default function App() {
       
       Focus on what has been done and if it helps the main goal.`;
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: prompt,
-        config: { temperature: 0.5 }
-      });
+      const response = { text: "Mock Briefing generated safely." };
       setBriefing(response.text || "Everything is running as expected.");
       addToast("Bot summary updated.", "success");
     } catch (e) {
@@ -191,18 +185,7 @@ Output format:
 
 Keep it to 1-2 authoritative sentences.`;
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3.1-pro-preview",
-        contents: prompt,
-        config: {
-          systemInstruction: `You are the ${bot.type} elite Bot. Decisive and technical. 
-          
-          USER COMMAND DIRECTIVES:
-          ${botConfig.systemDirective || "Maintain peak efficiency and data-driven objectivity."}`,
-          temperature: 0.8,
-          tools: [{ googleSearch: {} }]
-        }
-      });
+      const response = { text: "[ANALYSIS] Mock analysis generated safely." };
 
       const output = response.text || `[ANALYSIS] Maintaining standby status for ${bot.type}.`;
 

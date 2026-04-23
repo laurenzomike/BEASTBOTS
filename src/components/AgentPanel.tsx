@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from "motion/react";
 import { doc, setDoc, serverTimestamp, collection, addDoc, query, where, onSnapshot, limit, orderBy, getDocs, deleteDoc } from "firebase/firestore";
 import { db, handleFirestoreError, auth } from "../lib/firebase";
 import { cn } from "../lib/utils";
-import { GoogleGenAI } from "@google/genai";
 import { BOT_TYPES, PLATFORM_WORKFLOWS } from "../constants";
 import { BEHAVIORAL_TEMPLATES } from "../constants/prompts";
 import { Bot } from "../types";
@@ -16,7 +15,6 @@ interface AgentPanelProps {
   onClose: () => void;
 }
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 export function AgentPanel({ bot, onClose }: AgentPanelProps) {
   const [workflows, setWorkflows] = useState<any[]>(bot?.config?.workflows || []);
@@ -125,10 +123,7 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
     addLog(`Initiating AI Simulation Cycle for ${bot.name}...`);
     try {
       const prompt = `Simulate an execution step for ${bot.type}. Current strategy: ${strategy}. Global goals: ${bot.config.userGoal || "Dominance"}. Provide a short report.`;
-      const result = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: prompt
-      });
+      const result = { text: "Mock Simulation executed safely." };
       addLog(`[AI_REPORT] ${result.text}`);
     } catch (e) {
       addLog(`[ERROR] ${e instanceof Error ? e.message : 'Unknown failure'}`);

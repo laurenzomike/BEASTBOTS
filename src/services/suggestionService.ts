@@ -1,7 +1,5 @@
-import { GoogleGenAI } from "@google/genai";
 import { PLATFORM_WORKFLOWS } from "../constants";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 export async function suggestWorkflows(botType: string, userGoal: string) {
   const platformData = PLATFORM_WORKFLOWS[botType];
@@ -20,18 +18,14 @@ export async function suggestWorkflows(botType: string, userGoal: string) {
   ]
   Ensure trigger and action names match the Allowed lists exactly.`;
 
-  try {
-    const result = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: prompt,
-      config: { 
-        temperature: 0.7,
-        responseMimeType: "application/json" 
-      }
-    });
 
-    const parsed = JSON.parse(result.text || "[]");
+  try {
+    // Mock suggestions to avoid API key crash on frontend
+    const parsed = [
+      { trigger: platformData.triggers[0], action: platformData.actions[0], prompt: "Mock AI suggestion for " + userGoal }
+    ];
     return parsed;
+
   } catch (e) {
     console.error("Suggestion error:", e);
     return [];
