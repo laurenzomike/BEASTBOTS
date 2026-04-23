@@ -1,5 +1,7 @@
+import { GoogleGenAI } from "@google/genai";
 import { PLATFORM_WORKFLOWS } from "../constants";
-import { auth } from "../lib/firebase";
+
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 export async function suggestWorkflows(botType: string, userGoal: string) {
   const platformData = PLATFORM_WORKFLOWS[botType];
@@ -19,18 +21,17 @@ export async function suggestWorkflows(botType: string, userGoal: string) {
   Ensure trigger and action names match the Allowed lists exactly.`;
 
   try {
-    const token = await auth.currentUser?.getIdToken();
-    const res = await fetch("/api/ai/generate", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
-      },
-      body: JSON.stringify({ prompt, jsonResponse: true })
+    const result = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: prompt,
+      config: { 
+        temperature: 0.7,
+        responseMimeType: "application/json" 
+      }
     });
-    if (!res.ok) throw new Error(`Backend returned ${res.status}`);
-    const data = await res.json();
-    return JSON.parse(data.text || "[]");
+
+    const parsed = JSON.parse(result.text || "[]");
+    return parsed;
   } catch (e) {
     console.error("Suggestion error:", e);
     return [];

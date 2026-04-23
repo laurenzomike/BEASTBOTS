@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { doc, setDoc, serverTimestamp, collection, addDoc, query, where, onSnapshot, limit, orderBy, getDocs, deleteDoc } from "firebase/firestore";
 import { db, handleFirestoreError, auth } from "../lib/firebase";
 import { cn } from "../lib/utils";
+import { GoogleGenAI } from "@google/genai";
 import { BOT_TYPES, PLATFORM_WORKFLOWS } from "../constants";
 import { Bot } from "../types";
 import { handleBotErrorTransition } from "../lib/errorUtils";
@@ -14,6 +15,7 @@ interface AgentPanelProps {
   onClose: () => void;
 }
 
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 export function AgentPanel({ bot, onClose }: AgentPanelProps) {
   const [workflows, setWorkflows] = useState<any[]>(bot?.config?.workflows || []);
@@ -29,12 +31,6 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [activities, setActivities] = useState<any[]>([]);
   const [platformInfo, setPlatformInfo] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<"overview" | "config" | "knowledge" | "playground">("overview");
-  const [systemInstructions, setSystemInstructions] = useState(bot?.config?.systemInstructions || "");
-  const [activeTools, setActiveTools] = useState<string[]>(bot?.config?.tools || ["Web Search"]);
-  const [chatHistory, setChatHistory] = useState<{role: 'user' | 'bot', text: string}[]>([]);
-  const [currentMessage, setCurrentMessage] = useState("");
-  const [isTyping, setIsTyping] = useState(false);
 
   useEffect(() => {
     if (!bot) return;
@@ -93,7 +89,6 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
         ...bot.config,
         workflows,
         strategy,
-        systemInstructions,
         parameters: parameters.reduce((acc, p) => ({ ...acc, [p.key]: p.value }), {}),
       };
       await setDoc(doc(db, "users", auth.currentUser!.uid, "bots", bot.id), { 
@@ -112,87 +107,16 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
     setLogs(prev => [{ time: new Date().toLocaleTimeString(), text }, ...prev].slice(0, 50));
   };
 
-  const handlePlaygroundMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!currentMessage.trim()) return;
-
-    const userText = currentMessage;
-    setChatHistory(prev => [...prev, { role: 'user', text: userText }]);
-    setCurrentMessage("");
-    setIsTyping(true);
-
-    try {
-      const knowledgeContext = files.filter(f => f.content).map(f => `--- Document: ${f.fileName} ---\n${f.content}\n`).join("\n");
-
-      const systemInstruction = `System Instructions: ${systemInstructions || "You are a helpful assistant."}
-Role: ${bot.type} Bot
-Strategy: ${strategy}
-Win Condition: ${bot.config?.winCondition || "None"}
-Workflows Context: ${workflows.map(w => w.action).join(", ")}
-
-${knowledgeContext ? `KNOWLEDGE BASE PROVIDED BY USER:\n${knowledgeContext}\nUse the knowledge base above to answer user questions when relevant.` : ""}
-Respond directly as the bot.`;
-
-      const history = chatHistory.map(msg => ({
-        role: msg.role === 'user' ? 'user' : 'model',
-        parts: [{ text: msg.text }]
-      }));
-
-      const token = await auth.currentUser?.getIdToken();
-      const res = await fetch("/api/ai/generate", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          prompt: userText,
-          systemInstruction,
-          history,
-          tools: [
-            ...(activeTools.includes("Web Search") ? [{ googleSearch: {} }] : []),
-            ...(activeTools.includes("Code Execution") ? [{ codeExecution: {} }] : [])
-          ].length > 0 ? [
-            ...(activeTools.includes("Web Search") ? [{ googleSearch: {} }] : []),
-            ...(activeTools.includes("Code Execution") ? [{ codeExecution: {} }] : [])
-          ] : undefined
-        })
-      });
-
-      if (!res.ok) throw new Error(`Backend returned ${res.status}`);
-      const data = await res.json();
-
-      setChatHistory(prev => [...prev, { role: 'bot', text: data.text || "No response generated." }]);
-    } catch (e) {
-      setChatHistory(prev => [...prev, { role: 'bot', text: "[SYSTEM ERROR] Communication failed. " + (e instanceof Error ? e.message : "") }]);
-    } finally {
-      setIsTyping(false);
-    }
-  };
-
   const handleTestRun = async () => {
     setIsGenerating(true);
     addLog(`Initiating AI Simulation Cycle for ${bot.name}...`);
     try {
-      const knowledgeContext = files.filter(f => f.content).map(f => `--- Document: ${f.fileName} ---\n${f.content}\n`).join("\n");
-      const prompt = `Simulate an execution step for ${bot.type}. Current strategy: ${strategy}. Global goals: ${bot.config.userGoal || "Dominance"}.
-${knowledgeContext ? `KNOWLEDGE BASE:\n${knowledgeContext}\n` : ""}
-Provide a short report.`;
-
-      const token = await auth.currentUser?.getIdToken();
-      const res = await fetch("/api/ai/generate", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
-        body: JSON.stringify({ prompt })
+      const prompt = `Simulate an execution step for ${bot.type}. Current strategy: ${strategy}. Global goals: ${bot.config.userGoal || "Dominance"}. Provide a short report.`;
+      const result = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: prompt
       });
-
-      if (!res.ok) throw new Error(`Backend returned ${res.status}`);
-      const data = await res.json();
-
-      addLog(`[AI_REPORT] ${data.text}`);
+      addLog(`[AI_REPORT] ${result.text}`);
     } catch (e) {
       addLog(`[ERROR] ${e instanceof Error ? e.message : 'Unknown failure'}`);
     } finally {
@@ -216,26 +140,18 @@ Provide a short report.`;
     if (!e.target.files?.length) return;
     setIsUploading(true);
     const file = e.target.files[0];
-
     try {
-      let content = "";
-      if (file.type.startsWith("text/") || file.name.endsWith(".md") || file.name.endsWith(".json")) {
-        content = await file.text();
-      }
-
       const filesRef = collection(db, "users", auth.currentUser!.uid, "bots", bot.id, "files");
       await addDoc(filesRef, {
         fileName: file.name,
         fileSize: file.size,
         contentType: file.type,
-        content: content.slice(0, 100000), // Max ~100k chars to prevent massive document explosion
-        contentSummary: content ? `Extracted ${content.length} characters of knowledge data.` : "Binary/unsupported format. Metadata indexed.",
+        contentSummary: "Analyzing document patterns and core instructions...",
         createdAt: serverTimestamp()
       });
       addLog(`Knowledge asset "${file.name}" uploaded and indexed.`);
     } catch (e) {
       console.error(e);
-      addLog(`Failed to index asset: ${e instanceof Error ? e.message : 'Unknown error'}`);
     } finally {
       setIsUploading(false);
     }
@@ -308,23 +224,7 @@ Provide a short report.`;
             ))}
           </div>
 
-          <div className="flex border-b-[4px] border-black mb-8 overflow-x-auto">
-             {["overview", "config", "knowledge", "playground"].map((tab) => (
-               <button
-                 key={tab}
-                 onClick={() => setActiveTab(tab as any)}
-                 className={cn(
-                   "px-6 py-3 font-black uppercase text-sm border-r-[4px] border-black hover:bg-black hover:text-[#D4FF00] transition-colors whitespace-nowrap",
-                   activeTab === tab ? "bg-black text-[#D4FF00]" : "bg-white text-black"
-                 )}
-               >
-                 {tab}
-               </button>
-             ))}
-          </div>
-
-          {activeTab === "overview" && (
-            <div className="space-y-12">
+          <div className="space-y-12">
              <section className="space-y-6">
                 <div className="flex items-center justify-between border-b-[4px] border-black pb-2">
                   <h3 className="font-sans text-3xl font-black uppercase flex items-center gap-3"><Trophy className="w-8 h-8" />Objective Milestones</h3>
@@ -350,44 +250,7 @@ Provide a short report.`;
                 </div>
              </section>
 
-
-              <div className="space-y-4">
-                 <div className="flex items-center justify-between border-b-[4px] border-black pb-2">
-                    <h3 className="font-sans text-xl font-black uppercase">Recent Bot Activity</h3>
-                    <span className="bg-black text-[var(--brand)] px-2 py-0.5 text-[8px] font-black mono-type uppercase">Live Feed</span>
-                 </div>
-                 <div className="w-full h-48 bg-white border-[4px] border-black p-4 font-mono text-[10px] overflow-y-auto space-y-2">
-                     {activities.length === 0 ? <div className="text-center opacity-30 py-10 uppercase">Waiting for activity...</div> : activities.map((log) => (
-                       <div key={log.id} className="flex gap-4 border-l-2 border-black/10 pl-2">
-                          <span className="opacity-30 italic">[{log.timestamp?.toDate().toLocaleTimeString()}]</span>
-                          <p className={cn(
-                            "font-bold",
-                            log.type === 'error' ? "text-red-500" : (log.type === 'action' ? "text-black" : "text-blue-600")
-                          )}>
-                            {log.text}
-                          </p>
-                       </div>
-                     ))}
-                 </div>
-              </div>
-              <section className="pt-10 border-t-4 border-black">
-                 <button
-                   onClick={async () => {
-                     if (confirm("Are you sure you want to decommission this bot? All its memory and files will be permanently erased.")) {
-                       await deleteDoc(doc(db, "users", auth.currentUser!.uid, "bots", bot.id));
-                       onClose();
-                     }
-                   }}
-                   className="w-full p-4 bg-[#FF2E00] text-white font-black uppercase tracking-widest text-sm brutal-shadow hover:bg-black transition-all border-4 border-black"
-                 >
-                   Decommission Bot
-                 </button>
-              </section>
-            </div>
-          )}
-          {activeTab === "knowledge" && (
-            <div className="space-y-12">
-             <section className="space-y-6 text-black bg-white p-8 border-[4px] border-black brutal-shadow">
+             <section className="space-y-6">
                 <div className="flex items-center justify-between border-b-[4px] border-black pb-2">
                   <h3 className="font-sans text-3xl font-black uppercase flex items-center gap-3"><Brain className="w-8 h-8" />Bot Memory</h3>
                   <button 
@@ -410,13 +273,13 @@ Provide a short report.`;
                      <label className="mono-type text-[10px] uppercase font-black">Things this bot has learned</label>
                      <span className="bg-black text-white px-2 py-0.5 text-[8px] mono-type font-black">{memories.length} ENTRIES</span>
                   </div>
-                  <div className="bg-black text-[#D4FF00] border-[4px] border-black p-4 min-h-[100px] max-h-[200px] overflow-y-auto space-y-2 brutal-shadow text-xs">
+                  <div className="bg-white border-[4px] border-black p-4 min-h-[100px] max-h-[200px] overflow-y-auto space-y-2 brutal-shadow text-xs">
                     {memories.length === 0 ? (
-                      <div className="text-[10px] font-mono opacity-50 italic text-[#D4FF00]">Memory empty. Waiting for cycles...</div>
+                      <div className="text-[10px] font-mono opacity-50 italic">Memory empty. Waiting for cycles...</div>
                     ) : (
                       memories.map((m, i) => (
-                        <div key={i} className="flex gap-3 text-[10px] font-bold border-l-2 border-white/20 pl-3 py-1">
-                           <span className="opacity-30 self-start text-[#D4FF00]">{i + 1}</span>
+                        <div key={i} className="flex gap-3 text-[10px] font-bold border-l-2 border-black pl-3 py-1">
+                           <span className="opacity-30 self-start">{i + 1}</span>
                            <p>{m}</p>
                         </div>
                       ))
@@ -620,216 +483,6 @@ Provide a short report.`;
               </div>
             </section>
 
-            </div>
-          )}
-          {activeTab === "config" && (
-            <div className="space-y-12">
-             <section className="space-y-6 bg-white p-8 border-[4px] border-black brutal-shadow">
-               <h3 className="font-sans text-2xl font-black uppercase flex items-center gap-2 mb-4">System Instructions</h3>
-               <textarea
-                 className="w-full bg-black text-[#D4FF00] border-[4px] border-black p-4 font-mono text-xs brutal-shadow outline-none placeholder:text-white/30 h-32"
-                 placeholder="e.g. You are a helpful assistant. Always verify data before responding."
-                 value={systemInstructions}
-                 onChange={(e) => setSystemInstructions(e.target.value)}
-                 onBlur={(e) => setDoc(doc(db, "users", auth.currentUser!.uid, "bots", bot.id), { config: { ...bot.config, systemInstructions: e.target.value }, updatedAt: serverTimestamp() }, { merge: true })}
-               />
-               <div className="flex gap-4 mt-4">
-                 {["Web Search", "Code Execution", "API Access"].map(tool => (
-                    <label key={tool} className="flex items-center gap-2 mono-type text-[10px] font-black uppercase cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={activeTools.includes(tool)}
-                        onChange={(e) => {
-                          const newTools = e.target.checked ? [...activeTools, tool] : activeTools.filter(t => t !== tool);
-                          setActiveTools(newTools);
-                          setDoc(doc(db, "users", auth.currentUser!.uid, "bots", bot.id), { config: { ...bot.config, tools: newTools }, updatedAt: serverTimestamp() }, { merge: true });
-                        }}
-                        className="w-4 h-4 accent-black"
-                      /> {tool}
-                    </label>
-                 ))}
-               </div>
-             </section>
-
-              <section className="space-y-6">
-                <div className="flex items-center justify-between border-b-[4px] border-black pb-2">
-                  <h3 className="font-sans text-3xl font-black uppercase flex items-center gap-2 underline decoration-4">Bot Core Directives</h3>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="mono-type text-[10px] font-black uppercase">Execution Strategy</label>
-                    <select
-                      value={strategy}
-                      onChange={(e) => setStrategy(e.target.value)}
-                      className="w-full bg-black border-[4px] border-black p-3 font-mono font-bold text-[#D4FF00] outline-none"
-                    >
-                      <option value="standard">Standard Operation</option>
-                      <option value="aggressive">Aggressive / Fast</option>
-                      <option value="conservative">Conservative / Safe</option>
-                    </select>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="mono-type text-[10px] font-black uppercase">Success Criteria (Winning Condition)</label>
-                    <input
-                      className="w-full bg-black text-[#D4FF00] border-[4px] border-black p-3 font-mono font-bold text-xs brutal-shadow outline-none placeholder:text-white/30"
-                      placeholder="e.g. ROI > 5%, Resolved Support Ticket"
-                      defaultValue={bot.config?.winCondition || ""}
-                      onBlur={(e) => setDoc(doc(db, "users", auth.currentUser!.uid, "bots", bot.id), { config: { ...bot.config, winCondition: e.target.value }, updatedAt: serverTimestamp() }, { merge: true })}
-                    />
-                  </div>
-                </div>
-              </section>
-
-              <section className="space-y-6">
-                <div className="flex items-center justify-between border-b-[4px] border-black pb-2">
-                  <h3 className="font-sans text-3xl font-black uppercase flex items-center gap-3"><Zap className="w-8 h-8" />Auto-Reply</h3>
-                  <div className="flex items-center gap-3">
-                    <span className="mono-type text-[10px] font-black uppercase">{bot.config?.autoResponseEnabled ? 'ENABLED' : 'DISABLED'}</span>
-                    <button
-                      onClick={() => setDoc(doc(db, "users", auth.currentUser!.uid, "bots", bot.id), { config: { ...bot.config, autoResponseEnabled: !bot.config?.autoResponseEnabled }, updatedAt: serverTimestamp() }, { merge: true })}
-                      className={cn(
-                        "w-12 h-6 border-2 border-black relative transition-all brutal-shadow",
-                        bot.config?.autoResponseEnabled ? "bg-black" : "bg-white"
-                      )}
-                    >
-                      <div className={cn(
-                        "absolute top-0.5 w-4 h-4 transition-all",
-                        bot.config?.autoResponseEnabled ? "right-1 bg-white" : "left-1 bg-black"
-                      )} />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                      <label className="mono-type text-[10px] font-black uppercase">Reply Tone</label>
-                      <select
-                        value={bot.config?.responseTone || "Professional"}
-                        onChange={(e) => setDoc(doc(db, "users", auth.currentUser!.uid, "bots", bot.id), { config: { ...bot.config, responseTone: e.target.value }, updatedAt: serverTimestamp() }, { merge: true })}
-                        className="w-full bg-white border-[3px] border-black p-2 font-mono text-[10px] font-black uppercase"
-                      >
-                        <option>Professional</option>
-                        <option>Friendly</option>
-                        <option>Short & Direct</option>
-                        <option>Helpful</option>
-                      </select>
-                  </div>
-                  <div className="space-y-2">
-                      <label className="mono-type text-[10px] font-black uppercase">Bot Signature</label>
-                      <input
-                        className="w-full bg-white border-[3px] border-black p-2 font-mono text-[10px] font-black"
-                        defaultValue={bot.config?.responseSignature || "Bot Boss Assistant"}
-                        onBlur={(e) => setDoc(doc(db, "users", auth.currentUser!.uid, "bots", bot.id), { config: { ...bot.config, responseSignature: e.target.value }, updatedAt: serverTimestamp() }, { merge: true })}
-                      />
-                  </div>
-                </div>
-              </section>
-
-              <section className="space-y-6">
-                <div className="flex items-center justify-between border-b-[4px] border-black pb-2">
-                  <h3 className="font-sans text-3xl font-black uppercase flex items-center gap-2 underline decoration-4">Bot Actions</h3>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={handleSuggestWorkflows}
-                      disabled={isSuggesting}
-                      className="p-2 bg-[var(--brand)] text-black border-2 border-black hover:bg-white transition-all disabled:opacity-50"
-                      title="Get AI Suggestions"
-                    >
-                      {isSuggesting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Lightbulb className="w-5 h-5" />}
-                    </button>
-                    <button onClick={addWorkflow} className="p-2 bg-black text-white hover:bg-white hover:text-black transition-all border-2 border-black"><Plus className="w-5 h-5" /></button>
-                  </div>
-                </div>
-                <div className="space-y-4">
-                  {workflows.map((wf) => (
-                    <div key={wf.id} className="bg-black text-white p-6 border-[4px] border-white/20 brutal-shadow relative">
-                      <button onClick={() => removeWorkflow(wf.id)} className="absolute top-2 right-2 text-white/50 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
-                      <div className="grid grid-cols-2 gap-4 mb-4">
-                        <div>
-                          <label className="mono-type text-[8px] font-black uppercase text-white/50 block mb-1">When this happens...</label>
-                          <select
-                            value={wf.trigger}
-                            onChange={(e) => updateWorkflow(wf.id, "trigger", e.target.value)}
-                            className="w-full bg-black border border-white/20 p-2 text-[10px] font-bold"
-                          >
-                            <option value="">Select Trigger</option>
-                            {PLATFORM_WORKFLOWS[bot.type]?.triggers.map(t => <option key={t} value={t}>{t}</option>)}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="mono-type text-[8px] font-black uppercase text-white/50 block mb-1">Do this action...</label>
-                          <select
-                            value={wf.action}
-                            onChange={(e) => updateWorkflow(wf.id, "action", e.target.value)}
-                            className="w-full bg-black border border-white/20 p-2 text-[10px] font-bold"
-                          >
-                            <option value="">Select Action</option>
-                            {PLATFORM_WORKFLOWS[bot.type]?.actions.map(a => <option key={a} value={a}>{a}</option>)}
-                          </select>
-                        </div>
-                      </div>
-                      <textarea
-                        placeholder="Special instructions for this rule..."
-                        rows={2}
-                        value={wf.prompt}
-                        onChange={(e) => updateWorkflow(wf.id, "prompt", e.target.value)}
-                        className="w-full bg-black border border-white/20 p-3 text-[10px] font-mono focus:border-[var(--brand)] focus:outline-none"
-                      />
-                    </div>
-                  ))}
-                </div>
-              </section>
-            </div>
-          )}
-
-          {activeTab === "playground" && (
-            <div className="space-y-12 h-full">
-              <section className="bg-white p-8 border-[4px] border-black brutal-shadow h-[500px] flex flex-col">
-                 <h3 className="font-sans text-2xl font-black uppercase border-b-4 border-black pb-2 mb-4">Playground Interface</h3>
-                 <div className="flex-grow bg-black p-4 font-mono text-xs overflow-y-auto border-4 border-black mb-4 space-y-4">
-                   {chatHistory.length === 0 ? (
-                     <div className="opacity-50 italic text-[#D4FF00] text-center mt-10">Simulation initialized with current bot configuration. Awaiting user input...</div>
-                   ) : (
-                     chatHistory.map((msg, i) => (
-                       <div key={i} className={cn(
-                         "p-3 max-w-[80%] border-2 brutal-shadow",
-                         msg.role === 'user'
-                          ? "bg-white text-black border-black ml-auto rounded-tl-xl rounded-bl-xl rounded-br-xl"
-                          : "bg-[var(--brand)] text-black border-black mr-auto rounded-tr-xl rounded-br-xl rounded-bl-xl"
-                       )}>
-                         <span className="block text-[8px] font-black uppercase mb-1 opacity-50">{msg.role === 'user' ? 'You' : bot.name}</span>
-                         <div className="whitespace-pre-wrap">{msg.text}</div>
-                       </div>
-                     ))
-                   )}
-                   {isTyping && (
-                      <div className="p-3 max-w-[80%] bg-[var(--brand)] text-black border-2 border-black mr-auto rounded-tr-xl rounded-br-xl rounded-bl-xl brutal-shadow">
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      </div>
-                   )}
-                 </div>
-                 <form onSubmit={handlePlaygroundMessage} className="flex gap-2">
-                   <input
-                     value={currentMessage}
-                     onChange={(e) => setCurrentMessage(e.target.value)}
-                     className="flex-grow bg-white border-[4px] border-black p-3 font-mono font-bold text-xs outline-none focus:border-[var(--brand)]"
-                     placeholder="Send a test message..."
-                     disabled={isTyping}
-                   />
-                   <button
-                     type="submit"
-                     disabled={isTyping || !currentMessage.trim()}
-                     className="bg-black text-white px-6 font-black uppercase hover:bg-[var(--brand)] hover:text-black border-4 border-black transition-colors disabled:opacity-50"
-                   >
-                     Send
-                   </button>
-                 </form>
-              </section>
-            </div>
-          )}
-
-          {(activeTab === "config" || activeTab === "overview") && (
             <div className="pt-10 flex gap-4">
                <button 
                  onClick={handleSaveConfig}
@@ -846,8 +499,40 @@ Provide a short report.`;
                  <Play className={cn("w-8 h-8", isGenerating && "animate-pulse")} />
                </button>
             </div>
-          )}
 
+            <div className="space-y-4">
+               <div className="flex items-center justify-between border-b-[4px] border-black pb-2">
+                  <h3 className="font-sans text-xl font-black uppercase">Recent Bot Activity</h3>
+                  <span className="bg-black text-[var(--brand)] px-2 py-0.5 text-[8px] font-black mono-type uppercase">Live Feed</span>
+               </div>
+               <div className="w-full h-48 bg-white border-[4px] border-black p-4 font-mono text-[10px] overflow-y-auto space-y-2">
+                   {activities.length === 0 ? <div className="text-center opacity-30 py-10 uppercase">Waiting for activity...</div> : activities.map((log) => (
+                     <div key={log.id} className="flex gap-4 border-l-2 border-black/10 pl-2">
+                        <span className="opacity-30 italic">[{log.timestamp?.toDate().toLocaleTimeString()}]</span>
+                        <p className={cn(
+                          "font-bold",
+                          log.type === 'error' ? "text-red-500" : (log.type === 'action' ? "text-black" : "text-blue-600")
+                        )}>
+                          {log.text}
+                        </p>
+                     </div>
+                   ))}
+               </div>
+            </div>
+             <section className="pt-10 border-t-4 border-black">
+                <button 
+                  onClick={async () => {
+                    if (confirm("Are you sure you want to decommission this bot? All its memory and files will be permanently erased.")) {
+                      await deleteDoc(doc(db, "users", auth.currentUser!.uid, "bots", bot.id));
+                      onClose();
+                    }
+                  }}
+                  className="w-full p-4 bg-[#FF2E00] text-white font-black uppercase tracking-widest text-sm brutal-shadow hover:bg-black transition-all border-4 border-black"
+                >
+                  Decommission Bot
+                </button>
+             </section>
+          </div>
         </div>
       </motion.div>
     </AnimatePresence>

@@ -12,11 +12,13 @@ import { AgentPanel } from "./components/AgentPanel";
 import { AgentOnboarding } from "./components/AgentOnboarding";
 import { BotCard } from "./components/BotCard";
 import { AuditView } from "./components/AuditView";
+import { GoogleGenAI } from "@google/genai";
 import { handleBotErrorTransition } from "./lib/errorUtils";
 import { Bot, Activity } from "./types";
 import { BOT_TYPES } from "./constants";
 import { motion, AnimatePresence } from "motion/react";
 
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 interface Toast {
   id: string;
@@ -77,18 +79,12 @@ export default function App() {
       
       Focus on what has been done and if it helps the main goal.`;
 
-      const token = await auth.currentUser?.getIdToken();
-      const res = await fetch("/api/ai/generate", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
-        body: JSON.stringify({ prompt })
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: prompt,
+        config: { temperature: 0.5 }
       });
-      if (!res.ok) throw new Error("API Error");
-      const data = await res.json();
-      setBriefing(data.text || "Everything is running as expected.");
+      setBriefing(response.text || "Everything is running as expected.");
       addToast("Bot summary updated.", "success");
     } catch (e) {
       console.error("Failed to generate briefing", e);
@@ -192,23 +188,20 @@ Output format:
 
 Keep it to 1-2 authoritative sentences.`;
 
-      const promptWithSystem = `System Instruction: You are the ${bot.type} elite Bot. Decisive and technical.
-USER COMMAND DIRECTIVES: ${botConfig.systemDirective || "Maintain peak efficiency and data-driven objectivity."}
-
-${prompt}`;
-
-      const token = await auth.currentUser?.getIdToken();
-      const res = await fetch("/api/ai/generate", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
-        body: JSON.stringify({ prompt: promptWithSystem, model: "gemini-3.1-pro-preview" })
+      const response = await ai.models.generateContent({
+        model: "gemini-3.1-pro-preview",
+        contents: prompt,
+        config: {
+          systemInstruction: `You are the ${bot.type} elite Bot. Decisive and technical. 
+          
+          USER COMMAND DIRECTIVES:
+          ${botConfig.systemDirective || "Maintain peak efficiency and data-driven objectivity."}`,
+          temperature: 0.8,
+          tools: [{ googleSearch: {} }]
+        }
       });
-      if (!res.ok) throw new Error("API Error");
-      const data = await res.json();
-      const output = data.text || `[ANALYSIS] Maintaining standby status for ${bot.type}.`;
+
+      const output = response.text || `[ANALYSIS] Maintaining standby status for ${bot.type}.`;
 
       // Memory Extraction
       const memoryMatch = output.match(/\[MEMORY:\s*(.*?)\]/);
@@ -307,23 +300,6 @@ ${prompt}`;
       const botRef = doc(db, "users", user.uid, "bots", botId);
       await setDoc(botRef, { status, updatedAt: serverTimestamp() }, { merge: true });
       addToast(`${botId.toUpperCase()} status updated to ${status}.`, "info");
-
-      // Dispatch a backend job when a bot is turned on
-      if (status === "online") {
-         const token = await auth.currentUser?.getIdToken();
-         fetch(`/api/execute/${botId}`, {
-           method: "POST",
-           headers: {
-             "Content-Type": "application/json",
-             "Authorization": `Bearer ${token}`
-           },
-           body: JSON.stringify({
-             uid: user.uid,
-             actionIntent: "INITIALIZE_AND_RUN",
-             aiReasoning: "User manually activated bot."
-           })
-         }).catch(console.error); // Fire and forget
-      }
     } catch (error) {
       handleFirestoreError(error, 'update', `users/${user.uid}/bots/${botId}`);
     }
@@ -484,7 +460,7 @@ ${prompt}`;
               >
                 <AuditView bots={bots} activities={globalActivities} />
               </motion.div>
-            ) : selectedBot ? (
+            ) : selectedBotId ? (
               <motion.div 
                 key="onboarding-or-panel"
                 initial={{ opacity: 0, y: 20 }}
@@ -494,7 +470,7 @@ ${prompt}`;
                 className="min-h-screen"
               >
                 {(() => {
-                  const bot = selectedBot;
+                  const bot = bots.find(b => b.id === selectedBotId);
                   if (!bot) return null;
                   if (!bot.config?.isInitialized) {
                     return (
@@ -510,7 +486,8 @@ ${prompt}`;
                   return (
                     <AgentPanel 
                       bot={bot}
-                      onClose={() => setSelectedBot(null)}
+                      onUpdateBot={() => {}}
+                      onClose={() => setSelectedBotId(null)}
                     />
                   );
                 })()}
@@ -628,6 +605,7 @@ ${prompt}`;
         )}
       </AnimatePresence>
 
+      <AgentPanel bot={selectedBot} onClose={() => setSelectedBot(null)} />
     </div>
   );
 }
