@@ -460,7 +460,7 @@ Keep it to 1-2 authoritative sentences.`;
               >
                 <AuditView bots={bots} activities={globalActivities} />
               </motion.div>
-            ) : selectedBotId ? (
+            ) : selectedBot?.id ? (
               <motion.div 
                 key="onboarding-or-panel"
                 initial={{ opacity: 0, y: 20 }}
@@ -470,7 +470,7 @@ Keep it to 1-2 authoritative sentences.`;
                 className="min-h-screen"
               >
                 {(() => {
-                  const bot = bots.find(b => b.id === selectedBotId);
+                  const bot = bots.find(b => b.id === selectedBot?.id);
                   if (!bot) return null;
                   if (!bot.config?.isInitialized) {
                     return (
@@ -486,8 +486,7 @@ Keep it to 1-2 authoritative sentences.`;
                   return (
                     <AgentPanel 
                       bot={bot}
-                      onUpdateBot={() => {}}
-                      onClose={() => setSelectedBotId(null)}
+                      onClose={() => setSelectedBot(null)}
                     />
                   );
                 })()}
