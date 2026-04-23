@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { doc, setDoc, serverTimestamp, collection, addDoc, query, where, onSnapshot, limit, orderBy, getDocs, deleteDoc } from "firebase/firestore";
 import { db, handleFirestoreError, auth } from "../lib/firebase";
 import { cn } from "../lib/utils";
+import { GoogleGenAI } from "@google/genai";
 import { BOT_TYPES, PLATFORM_WORKFLOWS } from "../constants";
 import { BEHAVIORAL_TEMPLATES } from "../constants/prompts";
 import { Bot } from "../types";
@@ -15,6 +16,7 @@ interface AgentPanelProps {
   onClose: () => void;
 }
 
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 export function AgentPanel({ bot, onClose }: AgentPanelProps) {
   const [workflows, setWorkflows] = useState<any[]>(bot?.config?.workflows || []);
@@ -30,18 +32,6 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [activities, setActivities] = useState<any[]>([]);
   const [platformInfo, setPlatformInfo] = useState<any>(null);
-  const [terminalLines, setTerminalLines] = useState<string[]>([]);
-
-
-  useEffect(() => {
-    if (!bot) return;
-    const interval = setInterval(() => {
-      const hex = Math.floor(Math.random()*16777215).toString(16).toUpperCase().padStart(6, '0');
-      const msg = Math.random() > 0.5 ? `[OK] SYNC 0x${hex}` : `[INFO] Parsing nodes...`;
-      setTerminalLines(prev => [msg, ...prev].slice(0, 50));
-    }, 200);
-    return () => clearInterval(interval);
-  }, [bot]);
 
   useEffect(() => {
     if (!bot) return;
@@ -53,8 +43,8 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
 
     // Real-time memory
     const memoryRef = collection(db, "users", auth.currentUser!.uid, "bots", bot.id, "memories");
-    const unsubMemory = onSnapshot(query(memoryRef, limit(1)), (snap) => {
-      if (!snap.empty) setMemories(snap.docs[0].data().memories || []);
+    const unsubMemory = onSnapshot(query(memoryRef, orderBy("createdAt", "desc"), limit(20)), (snap) => {
+      setMemories(snap.docs.map(doc => doc.data().fact || ""));
     });
 
     // Real-time files
@@ -123,7 +113,10 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
     addLog(`Initiating AI Simulation Cycle for ${bot.name}...`);
     try {
       const prompt = `Simulate an execution step for ${bot.type}. Current strategy: ${strategy}. Global goals: ${bot.config.userGoal || "Dominance"}. Provide a short report.`;
-      const result = { text: "Mock Simulation executed safely." };
+      const result = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: prompt
+      });
       addLog(`[AI_REPORT] ${result.text}`);
     } catch (e) {
       addLog(`[ERROR] ${e instanceof Error ? e.message : 'Unknown failure'}`);
@@ -148,18 +141,35 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
     if (!e.target.files?.length) return;
     setIsUploading(true);
     const file = e.target.files[0];
+    
+    addLog(`Initiating secure upload sequence for ${file.name}...`);
+    
     try {
+      const textProcessing = new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          let text = (event.target?.result as string) || "";
+          // Truncate to 4500 chars to respect Firestore document rule limits
+          resolve(text.substring(0, 4500)); 
+        };
+        reader.onerror = () => resolve("Binary or unreadable format. File referenced only.");
+        reader.readAsText(file);
+      });
+
+      const extractedText = await textProcessing;
+
       const filesRef = collection(db, "users", auth.currentUser!.uid, "bots", bot.id, "files");
       await addDoc(filesRef, {
         fileName: file.name,
         fileSize: file.size,
-        contentType: file.type,
-        contentSummary: "Analyzing document patterns and core instructions...",
+        contentType: file.type || "unknown",
+        contentSummary: extractedText || "Empty file content.",
         createdAt: serverTimestamp()
       });
-      addLog(`Knowledge asset "${file.name}" uploaded and indexed.`);
+      addLog(`Knowledge asset "${file.name}" uploaded and parsed into memory context.`);
     } catch (e) {
       console.error(e);
+      addLog(`[ERROR] Failed to ingest file: ${e instanceof Error ? e.message : 'Unknown'}`);
     } finally {
       setIsUploading(false);
     }
@@ -203,9 +213,8 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
         animate={{ x: 0 }}
         exit={{ x: "100%" }}
         transition={{ type: "spring", damping: 30, stiffness: 300 }}
-        className="fixed inset-y-0 right-0 w-full md:w-[600px] bg-[var(--brand)] border-l-[8px] border-black z-50 overflow-y-auto selection:bg-black selection:text-[var(--brand)]"
+        className="fixed inset-y-0 right-0 w-full md:w-[600px] bg-[#D4FF00] border-l-[8px] border-black z-50 overflow-y-auto selection:bg-black selection:text-[#D4FF00]"
       >
-        <div className="w-full h-4 hazard-stripes"></div>
         <div className="p-8 lg:p-12 text-black">
           <div className="flex justify-between items-start mb-12">
             <div className="flex flex-col gap-2">
@@ -234,16 +243,6 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
           </div>
 
           <div className="space-y-12">
-
-             <section className="space-y-6 mb-12">
-                <h3 className="font-sans text-3xl font-black uppercase border-b-[4px] border-black pb-2">Live Terminal Stream</h3>
-                <div className="bg-black border-4 border-white p-4 h-48 overflow-y-auto font-mono text-[10px] text-[var(--brand)] brutal-shadow flex flex-col-reverse">
-                   {terminalLines.map((line, i) => (
-                      <div key={i} className="opacity-80">&gt; {line}</div>
-                   ))}
-                </div>
-             </section>
-
              <section className="space-y-6">
                 <div className="flex items-center justify-between border-b-[4px] border-black pb-2">
                   <h3 className="font-sans text-3xl font-black uppercase flex items-center gap-3"><Trophy className="w-8 h-8" />Objective Milestones</h3>
@@ -276,10 +275,8 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
                     onClick={async () => {
                       if (confirm("Reset bot memory? This cannot be undone.")) {
                         const mRef = collection(db, "users", auth.currentUser!.uid, "bots", bot.id, "memories");
-                        const mSnap = await getDocs(query(mRef, limit(1)));
-                        if (!mSnap.empty) {
-                          await deleteDoc(doc(db, "users", auth.currentUser!.uid, "bots", bot.id, "memories", mSnap.docs[0].id));
-                        }
+                        const mSnap = await getDocs(mRef);
+                        await Promise.all(mSnap.docs.map(d => deleteDoc(doc(db, "users", auth.currentUser!.uid, "bots", bot.id, "memories", d.id))));
                       }
                     }}
                     className="p-1 text-[8px] mono-type font-black uppercase bg-black text-white px-2 hover:bg-[#FF2E00] transition-colors"

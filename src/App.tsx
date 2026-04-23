@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useMemo } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { auth, db, login, logout, handleFirestoreError } from "./lib/firebase";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { collection, onSnapshot, doc, setDoc, getDocs, addDoc, query, where, serverTimestamp, orderBy, limit, increment } from "firebase/firestore";
@@ -12,12 +12,14 @@ import { AgentPanel } from "./components/AgentPanel";
 import { AgentOnboarding } from "./components/AgentOnboarding";
 import { BotCard } from "./components/BotCard";
 import { AuditView } from "./components/AuditView";
+import { GoogleGenAI } from "@google/genai";
 import { handleBotErrorTransition } from "./lib/errorUtils";
 import { getRelevantMemories, saveMemory } from "./services/memoryService";
 import { Bot, Activity } from "./types";
 import { BOT_TYPES } from "./constants";
 import { motion, AnimatePresence } from "motion/react";
 
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 interface Toast {
   id: string;
@@ -42,7 +44,6 @@ export default function App() {
   const [statusFilter, setStatusFilter] = useState<Bot["status"] | "all">("all");
   const [executingBots, setExecutingBots] = useState<Set<string>>(new Set());
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isFleetExecuting, setIsFleetExecuting] = useState(false);
   
   const coordinatorRef = useRef<NodeJS.Timeout | null>(null);
   const lastRunTracker = useRef<Record<string, any>>({});
@@ -80,7 +81,11 @@ export default function App() {
       
       Focus on what has been done and if it helps the main goal.`;
 
-      const response = { text: "Mock Briefing generated safely." };
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: prompt,
+        config: { temperature: 0.5 }
+      });
       setBriefing(response.text || "Everything is running as expected.");
       addToast("Bot summary updated.", "success");
     } catch (e) {
@@ -157,12 +162,19 @@ export default function App() {
         return `FILE: ${f.fileName} | SUMMARY: ${f.contentSummary}`;
       }).join('\n');
 
+      const recentFleetActions = globalActivities
+        .filter(a => a.botId !== bot.id && a.type === 'action')
+        .slice(0, 3)
+        .map(a => `[${a.botType.toUpperCase()}]: ${a.text}`)
+        .join('\n');
+
       const prompt = `You are a specialized independent executive on the ${bot.type.toUpperCase()} platform. 
 Role expertise: ${typeDef?.expertise || "General autonomous operation"}.
 
 🚨 UNIVERSAL OPERATIONAL PROTOCOL: ${globalDirective}
 
 Context:
+- Team Activity: ${recentFleetActions || "No recent team data."}
 - Memory Logs: ${memories.join(', ') || "Initial state."}
 - Operational Files: ${filesContext || "None."}
 - PRIMARY MISSION: ${botConfig.userGoal || "Business growth."}
@@ -185,7 +197,18 @@ Output format:
 
 Keep it to 1-2 authoritative sentences.`;
 
-      const response = { text: "[ANALYSIS] Mock analysis generated safely." };
+      const response = await ai.models.generateContent({
+        model: "gemini-3.1-pro-preview",
+        contents: prompt,
+        config: {
+          systemInstruction: `You are the ${bot.type} elite Bot. Decisive and technical. 
+          
+          USER COMMAND DIRECTIVES:
+          ${botConfig.systemDirective || "Maintain peak efficiency and data-driven objectivity."}`,
+          temperature: 0.8,
+          tools: [{ googleSearch: {} }]
+        }
+      });
 
       const output = response.text || `[ANALYSIS] Maintaining standby status for ${bot.type}.`;
 
@@ -238,15 +261,15 @@ Keep it to 1-2 authoritative sentences.`;
        const botsToRun = bots.filter(b => b.autonomous && b.status === "online");
        for (const bot of botsToRun) {
           const lastRun = lastRunTracker.current[bot.id] || 0;
-          const schedule = bot.config?.scheduleType || "interval";
-          const interval = bot.config?.intervalMs || 300000;
+          // refreshInterval is in seconds (default 30), convert to ms
+          const intervalMs = (bot.config?.refreshInterval || 30) * 1000;
           
-          if (Date.now() - lastRun >= interval) {
+          if (Date.now() - lastRun >= intervalMs) {
              lastRunTracker.current[bot.id] = Date.now();
              performAutonomousAction(bot);
           }
        }
-    }, 30000);
+    }, 1000); // Tick every second to evaluate bot schedules
 
     return () => {
       if (coordinatorRef.current) clearInterval(coordinatorRef.current);
@@ -315,16 +338,12 @@ Keep it to 1-2 authoritative sentences.`;
     }
   };
 
-  // ⚡ Bolt: Memoize filteredBots and cache lowercase searchQuery to prevent O(N) string allocations on every render
-  const filteredBots = useMemo(() => {
-    const lowerQuery = searchQuery.toLowerCase();
-    return bots.filter(bot => {
-      const matchesSearch = bot.name.toLowerCase().includes(lowerQuery) ||
-                           bot.type.toLowerCase().includes(lowerQuery);
-      const matchesStatus = statusFilter === "all" || bot.status === statusFilter;
-      return matchesSearch && matchesStatus;
-    });
-  }, [bots, searchQuery, statusFilter]);
+  const filteredBots = bots.filter(bot => {
+    const matchesSearch = bot.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                         bot.type.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus = statusFilter === "all" || bot.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
 
   if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-[var(--brand)] font-black text-4xl animate-pulse">STARTING BOT BOSS...</div>;
   if (!user) return <div className="min-h-screen bg-black flex flex-col items-center justify-center p-6"><Zap className="w-24 h-24 text-[var(--brand)] mb-8" /><button onClick={login} className="hardware-button">Login to Manage Bots</button></div>;
@@ -353,7 +372,6 @@ Keep it to 1-2 authoritative sentences.`;
       </div>
 
       <header className="p-6 md:p-12 border-b-[4px] border-white z-10 bg-[var(--brand)] text-black relative overflow-hidden">
-        <div className="marquee-container absolute inset-0 opacity-20 pointer-events-none z-0 flex items-center"><div className="marquee-content font-mono text-9xl whitespace-nowrap text-black font-black">SYSTEM OVERRIDE // ACTIVE // SYSTEM OVERRIDE // ACTIVE // </div></div>
         <div className="absolute top-0 right-0 w-64 h-64 bg-white/20 rotate-45 translate-x-32 -translate-y-32 pointer-events-none" />
         <div className="flex flex-col md:flex-row justify-between items-end relative z-10">
           <div className="flex flex-col gap-2">
@@ -471,6 +489,7 @@ Keep it to 1-2 authoritative sentences.`;
                   return (
                     <AgentPanel 
                       bot={bot}
+                      onUpdateBot={() => {}}
                       onClose={() => setSelectedBot(null)}
                     />
                   );

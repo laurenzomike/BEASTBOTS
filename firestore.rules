@@ -55,12 +55,12 @@ service cloud.firestore {
     }
 
     function isValidMemory(data) {
-      return data.keys().hasAll(['userId', 'botId', 'memories', 'updatedAt'])
+      return data.keys().hasAll(['userId', 'botId', 'fact', 'createdAt'])
         && data.keys().size() <= 8
         && data.userId == request.auth.uid
         && data.botId is string && data.botId.size() <= 128
-        && data.memories is list
-        && data.updatedAt is timestamp;
+        && data.fact is string && data.fact.size() > 0 && data.fact.size() <= 2000
+        && data.createdAt is timestamp;
     }
 
     function isValidFile(data) {

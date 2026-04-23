@@ -1,13 +1,15 @@
-import { collection, addDoc, query, where, getDocs, orderBy, limit } from "firebase/firestore";
+import { collection, addDoc, query, where, getDocs, orderBy, limit, serverTimestamp } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { Memory } from "../types";
 
 export const saveMemory = async (userId: string, botId: string, fact: string, sourceLogId?: string) => {
   const memRef = collection(db, "users", userId, "bots", botId, "memories");
   await addDoc(memRef, {
+    userId,
+    botId,
     fact,
-    sourceLogId,
-    createdAt: new Date()
+    sourceLogId: sourceLogId || null,
+    createdAt: serverTimestamp()
   });
 };
 
