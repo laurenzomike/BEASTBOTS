@@ -97,7 +97,7 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
       }, { merge: true });
       addLog("System configuration updated and synced.");
     } catch (e) {
-      console.error(e);
+      handleFirestoreError(e, 'update', `users/${bot.userId}/bots/${bot.id}`);
     } finally {
       setIsSaving(false);
     }
@@ -151,7 +151,7 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
       });
       addLog(`Knowledge asset "${file.name}" uploaded and indexed.`);
     } catch (e) {
-      console.error(e);
+      handleFirestoreError(e, 'update', `users/${bot.userId}/bots/${bot.id}`);
     } finally {
       setIsUploading(false);
     }
@@ -162,7 +162,7 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
       await deleteDoc(doc(db, "users", auth.currentUser!.uid, "bots", bot.id, "files", fileId));
       addLog("Knowledge asset removed from archive.");
     } catch (e) {
-      console.error(e);
+      handleFirestoreError(e, 'update', `users/${bot.userId}/bots/${bot.id}`);
     }
   };
 
