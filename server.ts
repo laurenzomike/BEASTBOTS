@@ -24,6 +24,28 @@ const PORT = 3000;
 
 app.use(express.json());
 
+// Authentication Middleware
+interface AuthenticatedRequest extends express.Request {
+  user?: admin.auth.DecodedIdToken;
+}
+
+const authenticateUser = async (req: AuthenticatedRequest, res: express.Response, next: express.NextFunction) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).json({ error: "Unauthorized: Missing or invalid token" });
+  }
+
+  const token = authHeader.split("Bearer ")[1];
+  try {
+    const decodedToken = await admin.auth().verifyIdToken(token);
+    req.user = decodedToken;
+    next();
+  } catch (error) {
+    console.error("Authentication error:", error);
+    return res.status(401).json({ error: "Unauthorized: Invalid token" });
+  }
+};
+
 // API Routes
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok" });
@@ -192,9 +214,9 @@ app.get(["/api/oauth/:provider/callback", "/api/oauth/:provider/callback/"], asy
 });
 
 // Trading Platform API Proxy (Mock for safety)
-app.get("/api/platform/:botType/info", async (req, res) => {
+app.get("/api/platform/:botType/info", authenticateUser, async (req: AuthenticatedRequest, res) => {
   const { botType } = req.params;
-  const { uid } = req.query;
+  const uid = req.user?.uid;
   
   if (!uid) return res.status(400).json({ error: "UID required" });
   
@@ -464,9 +486,10 @@ app.get("/api/platform/:botType/info", async (req, res) => {
 });
 
 // Production Execution Engine (Receives Intent from Gemini and Executes)
-app.post("/api/execute/:botType", async (req, res) => {
+app.post("/api/execute/:botType", authenticateUser, async (req: AuthenticatedRequest, res) => {
   const { botType } = req.params;
-  const { uid, actionIntent, aiReasoning } = req.body;
+  const { actionIntent, aiReasoning } = req.body;
+  const uid = req.user?.uid;
 
   if (!uid || !actionIntent) {
     return res.status(400).json({ error: "UID and actionIntent are required" });
