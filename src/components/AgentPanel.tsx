@@ -1,13 +1,13 @@
 import { X, Play, Loader2, Gauge, Power, Plus, Trash2, Save, ExternalLink, CheckCircle, AlertCircle, TrendingUp, Sparkles, Calendar, Clock, Database, FileText, Brain, Upload, Zap, Lightbulb, Trophy, ChevronDown, ChevronUp, ChevronRight, ShieldAlert, Settings, Cpu } from "lucide-react";
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { doc, setDoc, serverTimestamp, collection, addDoc, query, where, onSnapshot, limit, orderBy, getDocs, deleteDoc } from "firebase/firestore";
+import { doc, setDoc, serverTimestamp, collection, addDoc, query, where, onSnapshot, limit, orderBy, getDocs, deleteDoc, Timestamp } from "firebase/firestore";
 import { db, handleFirestoreError, auth } from "../lib/firebase";
 import { cn } from "../lib/utils";
 import { GoogleGenAI } from "@google/genai";
 import { BOT_TYPES, PLATFORM_WORKFLOWS } from "../constants";
 import { BEHAVIORAL_TEMPLATES } from "../constants/prompts";
-import { Bot } from "../types";
+import { Bot, Workflow, BotFile, Milestone, Activity, PlatformInfo } from "../types";
 import { handleBotErrorTransition } from "../lib/errorUtils";
 import { suggestWorkflows } from "../services/suggestionService";
 
@@ -19,19 +19,19 @@ interface AgentPanelProps {
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 export function AgentPanel({ bot, onClose }: AgentPanelProps) {
-  const [workflows, setWorkflows] = useState<any[]>(bot?.config?.workflows || []);
+  const [workflows, setWorkflows] = useState<Workflow[]>(bot?.config?.workflows || []);
   const [parameters, setParameters] = useState<{key: string, value: string}[]>([]);
   const [logs, setLogs] = useState<{ time: string; text: string }[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [strategy, setStrategy] = useState<string>("standard");
   const [memories, setMemories] = useState<string[]>([]);
-  const [files, setFiles] = useState<any[]>([]);
-  const [milestones, setMilestones] = useState<any[]>([]);
+  const [files, setFiles] = useState<BotFile[]>([]);
+  const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isSuggesting, setIsSuggesting] = useState(false);
-  const [activities, setActivities] = useState<any[]>([]);
-  const [platformInfo, setPlatformInfo] = useState<any>(null);
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [platformInfo, setPlatformInfo] = useState<PlatformInfo | null>(null);
   const [command, setCommand] = useState("");
   const [isProcessingCommand, setIsProcessingCommand] = useState(false);
 
@@ -571,7 +571,7 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
                             <Sparkles className="w-4 h-4 text-black" />
                          </div>
                          <div className="flex-grow">
-                            <span className="block mono-type text-[8px] uppercase font-black opacity-40 mb-1">{m.createdAt?.toDate().toLocaleDateString()}</span>
+                            <span className="block mono-type text-[8px] uppercase font-black opacity-40 mb-1">{(m.createdAt && "toDate" in m.createdAt ? (m.createdAt as Timestamp).toDate().toLocaleDateString() : "")}</span>
                             <p className="text-xs font-black uppercase tracking-tight">{m.title}</p>
                          </div>
                       </div>
@@ -1083,7 +1083,7 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
                          </div>
                          <div className="flex flex-col">
                             <span className="text-[10px] font-black uppercase leading-tight">{m.title}</span>
-                            <span className="text-[8px] opacity-50 mono-type">{m.createdAt?.toDate().toLocaleString()}</span>
+                            <span className="text-[8px] opacity-50 mono-type">{(m.createdAt && "toDate" in m.createdAt ? (m.createdAt as Timestamp).toDate().toLocaleString() : "")}</span>
                          </div>
                       </div>
                     ))}
@@ -1104,7 +1104,7 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
                        const cleanText = log.text.replace("[LIVE EXECUTION]", "").trim();
                        return (
                          <div key={log.id} className="flex gap-4 border-l-2 border-black/10 pl-2">
-                            <span className="opacity-30 italic">[{log.timestamp?.toDate().toLocaleTimeString()}]</span>
+                            <span className="opacity-30 italic">[{(log.timestamp && "toDate" in log.timestamp ? (log.timestamp as Timestamp).toDate().toLocaleTimeString() : "")}]</span>
                             <div className="flex flex-col">
                                 {isLive && <span className="bg-[#FF2E00] text-white px-1 py-0.5 text-[8px] animate-pulse w-max mb-1">LIVE EXECUTED</span>}
                                 <p className={cn(

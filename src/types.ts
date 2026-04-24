@@ -1,4 +1,5 @@
 import { User } from "firebase/auth";
+import { Timestamp, FieldValue } from "firebase/firestore";
 
 export type BotStatus = "online" | "offline" | "error" | "auth-required";
 
@@ -20,8 +21,8 @@ export interface Bot {
     [key: string]: any;
   };
   userId?: string;
-  createdAt?: any;
-  updatedAt?: any;
+  createdAt?: Timestamp | FieldValue;
+  updatedAt?: Timestamp | FieldValue;
 }
 
 export interface Activity {
@@ -30,7 +31,7 @@ export interface Activity {
   botId: string;
   botType: string;
   text: string;
-  timestamp: any;
+  timestamp: Timestamp | FieldValue;
   type?: 'action' | 'analysis' | 'error';
 }
 
@@ -39,7 +40,7 @@ export interface Memory {
   botId: string;
   fact: string;
   sourceLogId?: string;
-  createdAt: any;
+  createdAt: Timestamp | FieldValue;
 }
 
 export interface Responsibility {
@@ -69,4 +70,34 @@ export interface BotType {
   scopes?: string[];
   responsibilities?: Responsibility[];
   parameters?: ParameterSchema[];
+}
+
+export interface Workflow {
+  id: number;
+  trigger: string;
+  action: string;
+  prompt: string;
+  active: boolean;
+}
+
+export interface BotFile {
+  id: string;
+  fileName: string;
+  fileSize: number;
+  contentType: string;
+  contentSummary: string;
+  createdAt: Timestamp | FieldValue;
+}
+
+export interface Milestone {
+  id: string;
+  title: string;
+  createdAt: Timestamp | FieldValue;
+}
+
+export interface PlatformInfo {
+  connected: boolean;
+  accountName: string;
+  status: BotStatus;
+  stats: Record<string, string>;
 }
