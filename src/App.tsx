@@ -551,11 +551,16 @@ Keep it to 1-2 authoritative sentences.`;
 
   const seedBots = async (userId: string) => {
     const botsRef = collection(db, "users", userId, "bots");
+    const existingBotsSnap = await getDocs(botsRef);
+    const existingBotTypes = new Set<string>();
+    existingBotsSnap.forEach((doc) => {
+      existingBotTypes.add(doc.data().type);
+    });
+
     for (const bt of BOT_TYPES) {
       const isTrading = ["kalshi", "polymarket", "alpaca", "coinbase"].includes(bt.id);
       const docRef = doc(botsRef, bt.id);
-      const snap = await getDocs(query(botsRef, where("type", "==", bt.id)));
-      if (snap.empty) {
+      if (!existingBotTypes.has(bt.id)) {
         await setDoc(docRef, {
           userId, name: bt.name, type: bt.id, status: isTrading ? "online" : "auth-required",
           config: { 
