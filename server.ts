@@ -108,7 +108,7 @@ app.get(["/api/oauth/:provider/callback", "/api/oauth/:provider/callback/"], asy
   const { code, state, error } = req.query;
 
   if (error) {
-    return res.send(`<html><body><p>Error: ${error}</p></body></html>`);
+    return res.status(400).json({ error: String(error) });
   }
 
   try {
@@ -174,12 +174,13 @@ app.get(["/api/oauth/:provider/callback", "/api/oauth/:provider/callback/"], asy
       }, { merge: true });
     }
 
+    const safeProvider = JSON.stringify(provider).replace(/</g, "\\u003c");
     res.send(`
       <html>
         <body>
           <script>
             if (window.opener) {
-               window.opener.postMessage({ type: 'OAUTH_AUTH_SUCCESS', provider: '${provider}' }, '*');
+               window.opener.postMessage({ type: 'OAUTH_AUTH_SUCCESS', provider: ${safeProvider} }, '*');
                window.close();
             } else {
                window.location.href = '/';
@@ -189,9 +190,10 @@ app.get(["/api/oauth/:provider/callback", "/api/oauth/:provider/callback/"], asy
         </body>
       </html>
     `);
-  } catch (err) {
-    console.error("Token exchange failed:", err);
-    res.status(500).send("Token exchange failed.");
+  } catch (err: unknown) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    console.error("Token exchange failed:", errorMessage);
+    res.status(500).json({ error: "Token exchange failed." });
   }
 });
 
