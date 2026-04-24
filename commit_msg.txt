@@ -1,0 +1,13 @@
+🧪 Add tests for suggestWorkflows function in suggestionService.ts
+
+🎯 What: The suggestWorkflows function in src/services/suggestionService.ts was previously untested, leaving a gap in coverage for the business automation generation logic.
+
+📊 Coverage: A new test file src/services/__tests__/suggestionService.test.ts has been added. The following scenarios are now covered:
+- Passing an unrecognized botType
+- Receiving a successful JSON response
+- Passing an existing workflows list to format the prompt correctly
+- Handling API errors gracefully
+- Handling invalid JSON
+- Handling non-array JSON responses
+
+✨ Result: Test coverage for suggestionService.ts is dramatically improved. All 6 tests are passing, catching potential edge cases with invalid parsing or failure states from the Google GenAI API.
