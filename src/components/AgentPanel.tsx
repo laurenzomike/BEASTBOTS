@@ -2,7 +2,7 @@ import { X, Play, Loader2, Gauge, Power, Plus, Trash2, Save, ExternalLink, Check
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { doc, setDoc, serverTimestamp, collection, addDoc, query, where, onSnapshot, limit, orderBy, getDocs, deleteDoc } from "firebase/firestore";
-import { db, handleFirestoreError, auth } from "../lib/firebase";
+import { db, auth } from "../lib/firebase";
 import { cn } from "../lib/utils";
 import { GoogleGenAI } from "@google/genai";
 import { BOT_TYPES, PLATFORM_WORKFLOWS } from "../constants";
