@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { auth, db, login, logout, handleFirestoreError } from "./lib/firebase";
 import { onAuthStateChanged, User } from "firebase/auth";
-import { collection, onSnapshot, doc, setDoc, getDocs, addDoc, query, where, serverTimestamp, orderBy, limit, increment } from "firebase/firestore";
+import { collection, onSnapshot, doc, setDoc, getDocs, addDoc, query, where, serverTimestamp, orderBy, limit, increment, writeBatch } from "firebase/firestore";
 import { 
   Key, LogOut, Settings, RefreshCw, Layers, ShieldAlert, Cpu, 
   TrendingUp, Zap, Target, ChevronRight, Terminal, ChevronUp,
@@ -406,9 +406,12 @@ Keep it to 1-2 authoritative sentences.`;
     
     addToast(`Updating ${targets.length} bots to ${status}...`, "info");
     try {
-      await Promise.all(targets.map(b => 
-        setDoc(doc(db, "users", user.uid, "bots", b.id), { status, updatedAt: serverTimestamp() }, { merge: true })
-      ));
+      const batch = writeBatch(db);
+      targets.forEach(b => {
+        const botRef = doc(db, "users", user.uid, "bots", b.id);
+        batch.set(botRef, { status, updatedAt: serverTimestamp() }, { merge: true });
+      });
+      await batch.commit();
       addToast(`Fleet updated.`, "success");
     } catch (e) {
       addToast("Bulk update failed.", "error");
