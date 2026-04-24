@@ -28,11 +28,17 @@ export const GlobalTerminal: React.FC<GlobalTerminalProps> = ({
     setCommand('');
   };
 
-  const filteredActivities = globalActivities
-    .filter(a => filter === 'all' || a.botType === filter)
-    .filter(a => a.text.toLowerCase().includes(search.toLowerCase()) || a.botType.toLowerCase().includes(search.toLowerCase()));
+  // ⚡ Bolt: Memoize filtered activity list to prevent O(N) recalculation on every key stroke or render.
+  // search.toLowerCase is hoisted to prevent redundant allocations inside the loop.
+  const filteredActivities = React.useMemo(() => {
+    const searchLower = search.toLowerCase();
+    return globalActivities
+      .filter(a => filter === 'all' || a.botType === filter)
+      .filter(a => a.text.toLowerCase().includes(searchLower) || a.botType.toLowerCase().includes(searchLower));
+  }, [globalActivities, filter, search]);
 
-  const uniqueBots = Array.from(new Set(globalActivities.map(a => a.botType)));
+  // ⚡ Bolt: Memoize uniqueBots to prevent O(N) iteration and Set allocations over globalActivities array on each render
+  const uniqueBots = React.useMemo(() => Array.from(new Set(globalActivities.map(a => a.botType))), [globalActivities]);
 
   return (
     <>

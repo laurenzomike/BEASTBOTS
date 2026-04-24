@@ -568,12 +568,17 @@ Keep it to 1-2 authoritative sentences.`;
     }
   };
 
-  const filteredBots = bots.filter(bot => {
-    const matchesSearch = bot.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                         bot.type.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === "all" || bot.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  // ⚡ Bolt: Cache filtered results to prevent O(N) array allocation on every re-render.
+  // We also hoist the searchQuery toLowerCase call outside the filter loop to reduce CPU cycles.
+  const filteredBots = React.useMemo(() => {
+    const searchLower = searchQuery.toLowerCase();
+    return bots.filter(bot => {
+      const matchesSearch = bot.name.toLowerCase().includes(searchLower) ||
+                           bot.type.toLowerCase().includes(searchLower);
+      const matchesStatus = statusFilter === "all" || bot.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [bots, searchQuery, statusFilter]);
 
   if (loading) return (
     <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center text-[#D4FF00] font-black tracking-tighter">
