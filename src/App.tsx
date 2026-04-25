@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { auth, db, login, logout, handleFirestoreError } from "./lib/firebase";
 import { onAuthStateChanged, User } from "firebase/auth";
-import { collection, onSnapshot, doc, setDoc, getDocs, addDoc, query, where, serverTimestamp, orderBy, limit, increment } from "firebase/firestore";
+import { collection, onSnapshot, doc, setDoc, getDocs, addDoc, query, where, serverTimestamp, orderBy, limit, increment, Timestamp } from "firebase/firestore";
 import { 
   Key, LogOut, Settings, RefreshCw, Layers, ShieldAlert, Cpu, 
   TrendingUp, Zap, Target, ChevronRight, Terminal, ChevronUp,
@@ -183,7 +183,11 @@ export default function App() {
     const unsubscribeActivities = onSnapshot(activitiesQuery, (snapshot) => {
       const acts: Activity[] = [];
       snapshot.forEach((doc) => acts.push({ id: doc.id, ...doc.data() } as Activity));
-      acts.sort((a, b) => (b.timestamp?.toMillis() || 0) - (a.timestamp?.toMillis() || 0));
+      acts.sort((a, b) => {
+        const timeA = a.timestamp instanceof Timestamp ? a.timestamp.toMillis() : 0;
+        const timeB = b.timestamp instanceof Timestamp ? b.timestamp.toMillis() : 0;
+        return timeB - timeA;
+      });
       setGlobalActivities(acts.slice(0, 50)); 
     });
 
