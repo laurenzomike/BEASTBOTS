@@ -17,7 +17,7 @@ export interface Bot {
     schedule?: string;
     responsibilities?: string[];
     isInitialized?: boolean;
-    [key: string]: any;
+    [key: string]: unknown;
   };
   userId?: string;
   createdAt?: any;
