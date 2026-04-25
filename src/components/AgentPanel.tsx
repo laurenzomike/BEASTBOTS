@@ -7,7 +7,7 @@ import { cn } from "../lib/utils";
 import { GoogleGenAI } from "@google/genai";
 import { BOT_TYPES, PLATFORM_WORKFLOWS } from "../constants";
 import { BEHAVIORAL_TEMPLATES } from "../constants/prompts";
-import { Bot } from "../types";
+import { Bot, Activity, BotFile, Milestone, PlatformInfo } from "../types";
 import { handleBotErrorTransition } from "../lib/errorUtils";
 import { suggestWorkflows } from "../services/suggestionService";
 
@@ -26,12 +26,12 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [strategy, setStrategy] = useState<string>("standard");
   const [memories, setMemories] = useState<string[]>([]);
-  const [files, setFiles] = useState<any[]>([]);
-  const [milestones, setMilestones] = useState<any[]>([]);
+  const [files, setFiles] = useState<BotFile[]>([]);
+  const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isSuggesting, setIsSuggesting] = useState(false);
-  const [activities, setActivities] = useState<any[]>([]);
-  const [platformInfo, setPlatformInfo] = useState<any>(null);
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [platformInfo, setPlatformInfo] = useState<PlatformInfo | null>(null);
   const [command, setCommand] = useState("");
   const [isProcessingCommand, setIsProcessingCommand] = useState(false);
 
@@ -47,7 +47,7 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
 
     // Real-time stats simulation
     const interval = setInterval(() => {
-       setPlatformInfo((prev: any) => {
+       setPlatformInfo((prev: PlatformInfo | null) => {
          if (!prev) return prev;
          return {
            ...prev,
