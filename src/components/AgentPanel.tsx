@@ -7,13 +7,20 @@ import { cn } from "../lib/utils";
 import { GoogleGenAI } from "@google/genai";
 import { BOT_TYPES, PLATFORM_WORKFLOWS } from "../constants";
 import { BEHAVIORAL_TEMPLATES } from "../constants/prompts";
-import { Bot } from "../types";
+import { Bot, Activity, BotStatus } from "../types";
 import { handleBotErrorTransition } from "../lib/errorUtils";
 import { suggestWorkflows } from "../services/suggestionService";
 
 interface AgentPanelProps {
   bot: Bot | null;
   onClose: () => void;
+}
+
+interface PlatformInfo {
+  connected: boolean;
+  accountName: string;
+  status: BotStatus;
+  stats: Record<string, string>;
 }
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
@@ -30,8 +37,8 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
   const [milestones, setMilestones] = useState<any[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isSuggesting, setIsSuggesting] = useState(false);
-  const [activities, setActivities] = useState<any[]>([]);
-  const [platformInfo, setPlatformInfo] = useState<any>(null);
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [platformInfo, setPlatformInfo] = useState<PlatformInfo | null>(null);
   const [command, setCommand] = useState("");
   const [isProcessingCommand, setIsProcessingCommand] = useState(false);
 
@@ -47,7 +54,7 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
 
     // Real-time stats simulation
     const interval = setInterval(() => {
-       setPlatformInfo((prev: any) => {
+       setPlatformInfo((prev: PlatformInfo | null) => {
          if (!prev) return prev;
          return {
            ...prev,
@@ -81,7 +88,7 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
     // Real-time activities
     const activitiesRef = collection(db, "users", auth.currentUser!.uid, "activities");
     const unsubActivities = onSnapshot(query(activitiesRef, where("botId", "==", bot.id), orderBy("timestamp", "desc"), limit(20)), (snap) => {
-      setActivities(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setActivities(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Activity)));
     });
 
     // Simulate platform info
