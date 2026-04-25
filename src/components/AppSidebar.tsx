@@ -51,14 +51,14 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
          <X className="w-8 h-8" />
        </button>
        <nav className="flex flex-col gap-4 mt-12 lg:mt-0">
-          {[
+          {([
             { id: 'fleet', label: 'Active Agents', icon: Layers },
             { id: 'audit', label: 'Protocol Logs', icon: ShieldAlert },
             { id: 'integrations', label: 'Nerve Center', icon: Cpu }
-          ].map(v => (
+          ] as const).map(v => (
             <button 
               key={v.id}
-              onClick={() => { setCurrentView(v.id as any); setIsMobileMenuOpen(false); }}
+              onClick={() => { setCurrentView(v.id); setIsMobileMenuOpen(false); }}
               className={cn(
                 "w-full p-4 flex items-center gap-4 border-[4px] font-black uppercase text-sm transition-all brutal-shadow duration-200 hover:-translate-y-1 active:scale-95",
                 currentView === v.id ? "bg-[var(--brand)] text-black border-black translate-x-2 -translate-y-1 shadow-none" : "bg-black text-white border-white hover:border-[var(--brand)]"
