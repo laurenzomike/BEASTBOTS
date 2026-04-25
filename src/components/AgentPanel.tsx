@@ -7,7 +7,7 @@ import { cn } from "../lib/utils";
 import { GoogleGenAI } from "@google/genai";
 import { BOT_TYPES, PLATFORM_WORKFLOWS } from "../constants";
 import { BEHAVIORAL_TEMPLATES } from "../constants/prompts";
-import { Bot } from "../types";
+import { Bot, Workflow } from "../types";
 import { handleBotErrorTransition } from "../lib/errorUtils";
 import { suggestWorkflows } from "../services/suggestionService";
 
@@ -19,7 +19,7 @@ interface AgentPanelProps {
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 export function AgentPanel({ bot, onClose }: AgentPanelProps) {
-  const [workflows, setWorkflows] = useState<any[]>(bot?.config?.workflows || []);
+  const [workflows, setWorkflows] = useState<Workflow[]>(bot?.config?.workflows || []);
   const [parameters, setParameters] = useState<{key: string, value: string}[]>([]);
   const [logs, setLogs] = useState<{ time: string; text: string }[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -235,7 +235,7 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
     setWorkflows(workflows.filter(w => w.id !== id));
   };
 
-  const updateWorkflow = (id: number, field: string, value: any) => {
+  const updateWorkflow = <K extends keyof Workflow>(id: number, field: K, value: Workflow[K]) => {
     setWorkflows(workflows.map(w => w.id === id ? { ...w, [field]: value } : w));
   };
 

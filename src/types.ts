@@ -2,6 +2,14 @@ import { User } from "firebase/auth";
 
 export type BotStatus = "online" | "offline" | "error" | "auth-required";
 
+export interface Workflow {
+  id: number;
+  trigger: string;
+  action: string;
+  prompt: string;
+  active?: boolean;
+}
+
 export interface Bot {
   id: string;
   name: string;
@@ -17,6 +25,7 @@ export interface Bot {
     schedule?: string;
     responsibilities?: string[];
     isInitialized?: boolean;
+    workflows?: Workflow[];
     [key: string]: any;
   };
   userId?: string;
