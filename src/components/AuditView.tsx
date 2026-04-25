@@ -9,30 +9,52 @@ interface AuditViewProps {
 }
 
 export const AuditView: React.FC<AuditViewProps> = ({ bots, activities }) => {
-  const strategicAnalysis = activities.filter(a => a.type === 'analysis');
-  const totalWins = bots.reduce((acc, curr) => acc + (curr.config?.winCount || 0), 0);
-
   const [chartMode, setChartMode] = React.useState<'activity' | 'efficiency'>('activity');
 
-  const errors = activities.filter(a => a.type === 'error').length;
-  const reliability = activities.length > 0 ? Math.max(0, 100 - (errors / activities.length * 100)).toFixed(1) : "100";
+  // ⚡ Bolt: Memoize derived activity data using a single O(N) pass to prevent redundant
+  // filtering and reducing over the potentially large activities array on every render.
+  const { strategicAnalysis, errorCount, botStats, intelLogs } = React.useMemo(() => {
+    const analysis: Activity[] = [];
+    const intel: Activity[] = [];
+    let errs = 0;
+    const stats: Record<string, number> = {};
 
-  // Prepare data for activity by bot type
-  const botStats = activities.reduce((acc: any, curr) => {
-    acc[curr.botType] = (acc[curr.botType] || 0) + 1;
-    return acc;
-  }, {});
+    for (let i = 0; i < activities.length; i++) {
+      const a = activities[i];
+      if (a.type === 'analysis') analysis.push(a);
+      if (a.type === 'error') errs++;
+      if (a.botId === 'fleet-intelligence') intel.push(a);
+      stats[a.botType] = (stats[a.botType] || 0) + 1;
+    }
 
-  const efficiencyData = bots.map(b => ({
-    name: b.type,
-    wins: b.config?.winCount || 0,
-    activity: botStats[b.type] || 0,
-    ratio: botStats[b.type] ? ((b.config?.winCount || 0) / botStats[b.type] * 100).toFixed(1) : 0
-  })).sort((a, b) => Number(b.ratio) - Number(a.ratio));
+    return {
+      strategicAnalysis: analysis,
+      errorCount: errs,
+      botStats: stats,
+      intelLogs: intel
+    };
+  }, [activities]);
 
-  const intelLogs = activities.filter(a => a.botId === 'fleet-intelligence');
+  const totalWins = React.useMemo(() =>
+    bots.reduce((acc, curr) => acc + (curr.config?.winCount || 0), 0)
+  , [bots]);
 
-  const chartData = Object.entries(botStats).map(([name, value]) => ({ name, value }));
+  const reliability = React.useMemo(() =>
+    activities.length > 0 ? Math.max(0, 100 - (errorCount / activities.length * 100)).toFixed(1) : "100"
+  , [activities.length, errorCount]);
+
+  const chartData = React.useMemo(() =>
+    Object.entries(botStats).map(([name, value]) => ({ name, value }))
+  , [botStats]);
+
+  const efficiencyData = React.useMemo(() =>
+    bots.map(b => ({
+      name: b.type,
+      wins: b.config?.winCount || 0,
+      activity: botStats[b.type] || 0,
+      ratio: botStats[b.type] ? ((b.config?.winCount || 0) / botStats[b.type] * 100).toFixed(1) : 0
+    })).sort((a, b) => Number(b.ratio) - Number(a.ratio))
+  , [bots, botStats]);
 
   return (
     <div className="p-8 lg:p-12 space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700 max-w-7xl mx-auto">

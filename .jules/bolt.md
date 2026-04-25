@@ -1,3 +1,7 @@
 ## 2026-04-24 - React Filter O(N) Re-render Optimization
 **Learning:** In highly dynamic components like `GlobalTerminal` or `AppFleetGrid` where filtering logic involves arrays of objects, rendering repeatedly recalculates these filters. If string transformations like `searchQuery.toLowerCase()` are placed directly inside `.filter()` callbacks, it leads to heavy O(N) memory allocation and excess CPU cycles during every keystroke or component re-render.
 **Action:** When implementing filtering inside React functional components, always wrap the filtered array output in `React.useMemo()`. Furthermore, hoist loop-invariant transformations (like `.toLowerCase()`) outside the filter callback function to allocate strings just once per render rather than once per array element.
+
+## 2024-04-25 - React Component Derived State Memoization
+**Learning:** In components rendering lists or computing analytics (like `AuditView`), mapping and reducing over large arrays (like an activity/audit log array) multiple times per render leads to significant performance degradation, especially during user interactions that trigger re-renders.
+**Action:** Consolidate multiple `.filter()`, `.map()`, and `.reduce()` operations over the same array into a single `for` loop pass. Wrap the derivation logic in `React.useMemo` to ensure computations only occur when the underlying data changes, not on every component re-render.
