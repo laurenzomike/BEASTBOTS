@@ -18,22 +18,30 @@ export const IntegrationHub: React.FC<IntegrationHubProps> = ({ bots, handleConn
   const [activeTab, setActiveTab] = useState<'all' | 'connected' | 'unlinked'>('all');
   const [showDeployModal, setShowDeployModal] = useState(false);
 
-  const platforms = BOT_TYPES.map(type => {
-    const instances = bots.filter(b => b.type === type.id);
-    const isConnected = instances.some(b => b.status !== 'auth-required');
-    return {
-      ...type,
-      instances,
-      isConnected
-    };
-  });
+  // ⚡ Bolt: Memoize platform generation to prevent O(N) allocations and redundant `.some` calls on every render
+  const platforms = React.useMemo(() => {
+    return BOT_TYPES.map(type => {
+      const instances = bots.filter(b => b.type === type.id);
+      const isConnected = instances.some(b => b.status !== 'auth-required');
+      return {
+        ...type,
+        instances,
+        isConnected
+      };
+    });
+  }, [bots]);
 
-  const filteredPlatforms = platforms.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) || p.role.toLowerCase().includes(search.toLowerCase());
-    if (activeTab === 'connected') return matchesSearch && p.isConnected;
-    if (activeTab === 'unlinked') return matchesSearch && !p.isConnected;
-    return matchesSearch;
-  });
+  // ⚡ Bolt: Memoize filtered platform list to prevent O(N) filtering on every render.
+  // We also hoist search string toLowerCase logic to reduce per-item string allocations.
+  const filteredPlatforms = React.useMemo(() => {
+    const searchLower = search.toLowerCase();
+    return platforms.filter(p => {
+      const matchesSearch = p.name.toLowerCase().includes(searchLower) || p.role.toLowerCase().includes(searchLower);
+      if (activeTab === 'connected') return matchesSearch && p.isConnected;
+      if (activeTab === 'unlinked') return matchesSearch && !p.isConnected;
+      return matchesSearch;
+    });
+  }, [platforms, search, activeTab]);
 
   return (
     <div className="p-8 lg:p-12 space-y-12">
