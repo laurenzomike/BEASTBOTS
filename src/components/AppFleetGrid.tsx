@@ -9,8 +9,8 @@ interface AppFleetGridProps {
   bots: Bot[];
   searchQuery: string;
   setSearchQuery: (q: string) => void;
-  statusFilter: string;
-  setStatusFilter: (s: any) => void;
+  statusFilter: Bot['status'] | 'all';
+  setStatusFilter: (s: Bot['status'] | 'all') => void;
   bulkAction: (status: 'online' | 'offline') => void;
   filteredBots: Bot[];
   executingBots: Set<string>;
@@ -87,7 +87,7 @@ export const AppFleetGrid: React.FC<AppFleetGridProps> = ({
             <div className="relative group brutal-shadow hover:-translate-y-1 hover:translate-x-1 transition-all duration-300">
                <select 
                  value={statusFilter}
-                 onChange={(e) => setStatusFilter(e.target.value as any)}
+                 onChange={(e) => setStatusFilter(e.target.value as Bot['status'] | 'all')}
                  className="w-full md:w-56 bg-black border-[4px] border-white/20 p-4 mono-type text-[10px] font-black uppercase text-white focus:border-[#D4FF00] outline-none cursor-pointer appearance-none pr-10"
                >
                   <option value="all">Filture Nodes: All</option>
