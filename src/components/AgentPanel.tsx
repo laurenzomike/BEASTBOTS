@@ -1,15 +1,45 @@
 import { X, Play, Loader2, Gauge, Power, Plus, Trash2, Save, ExternalLink, CheckCircle, AlertCircle, TrendingUp, Sparkles, Calendar, Clock, Database, FileText, Brain, Upload, Zap, Lightbulb, Trophy, ChevronDown, ChevronUp, ChevronRight, ShieldAlert, Settings, Cpu } from "lucide-react";
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { doc, setDoc, serverTimestamp, collection, addDoc, query, where, onSnapshot, limit, orderBy, getDocs, deleteDoc } from "firebase/firestore";
+import { doc, setDoc, serverTimestamp, Timestamp, collection, addDoc, query, where, onSnapshot, limit, orderBy, getDocs, deleteDoc } from "firebase/firestore";
 import { db, handleFirestoreError, auth } from "../lib/firebase";
 import { cn } from "../lib/utils";
 import { GoogleGenAI } from "@google/genai";
 import { BOT_TYPES, PLATFORM_WORKFLOWS } from "../constants";
 import { BEHAVIORAL_TEMPLATES } from "../constants/prompts";
-import { Bot } from "../types";
+import { Bot, Activity } from "../types";
 import { handleBotErrorTransition } from "../lib/errorUtils";
 import { suggestWorkflows } from "../services/suggestionService";
+
+
+interface Workflow {
+  id: number | string;
+  trigger: string;
+  action: string;
+  prompt: string;
+  active: boolean;
+}
+
+interface FileRecord {
+  id: string;
+  fileName: string;
+  fileSize: number;
+  content?: string;
+  uploadedAt?: Timestamp;
+}
+
+interface Milestone {
+  id: string;
+  title: string;
+  createdAt?: Timestamp;
+}
+
+interface PlatformInfo {
+  connected: boolean;
+  accountName: string;
+  status: string;
+  stats: Record<string, string>;
+}
 
 interface AgentPanelProps {
   bot: Bot | null;
@@ -19,19 +49,19 @@ interface AgentPanelProps {
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 export function AgentPanel({ bot, onClose }: AgentPanelProps) {
-  const [workflows, setWorkflows] = useState<any[]>(bot?.config?.workflows || []);
+  const [workflows, setWorkflows] = useState<Workflow[]>(bot?.config?.workflows || []);
   const [parameters, setParameters] = useState<{key: string, value: string}[]>([]);
   const [logs, setLogs] = useState<{ time: string; text: string }[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [strategy, setStrategy] = useState<string>("standard");
   const [memories, setMemories] = useState<string[]>([]);
-  const [files, setFiles] = useState<any[]>([]);
-  const [milestones, setMilestones] = useState<any[]>([]);
+  const [files, setFiles] = useState<FileRecord[]>([]);
+  const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isSuggesting, setIsSuggesting] = useState(false);
-  const [activities, setActivities] = useState<any[]>([]);
-  const [platformInfo, setPlatformInfo] = useState<any>(null);
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [platformInfo, setPlatformInfo] = useState<PlatformInfo | null>(null);
   const [command, setCommand] = useState("");
   const [isProcessingCommand, setIsProcessingCommand] = useState(false);
 
@@ -47,7 +77,7 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
 
     // Real-time stats simulation
     const interval = setInterval(() => {
-       setPlatformInfo((prev: any) => {
+       setPlatformInfo((prev) => {
          if (!prev) return prev;
          return {
            ...prev,
@@ -178,7 +208,7 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
     }
   };
 
-  const handleUpdateParameter = (key: string, value: any) => {
+  const handleUpdateParameter = (key: string, value: string) => {
     setParameters(prev => {
       const exists = prev.find(p => p.key === key);
       if (exists) {
@@ -235,7 +265,7 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
     setWorkflows(workflows.filter(w => w.id !== id));
   };
 
-  const updateWorkflow = (id: number, field: string, value: any) => {
+  const updateWorkflow = (id: number | string, field: keyof Workflow, value: string | boolean) => {
     setWorkflows(workflows.map(w => w.id === id ? { ...w, [field]: value } : w));
   };
 
@@ -293,7 +323,7 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
     try {
       const suggestions = await suggestWorkflows(bot.type, bot.config?.userGoal || "Business Growth", workflows);
       if (suggestions.length > 0) {
-        const newWorkflows = suggestions.map((s: any) => ({
+        const newWorkflows = suggestions.map((s: Partial<Workflow>) => ({
           id: Date.now() + Math.random(),
           ...s,
           active: true
