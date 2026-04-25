@@ -58,7 +58,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           ].map(v => (
             <button 
               key={v.id}
-              onClick={() => { setCurrentView(v.id as any); setIsMobileMenuOpen(false); }}
+              onClick={() => { setCurrentView(v.id as 'fleet' | 'audit' | 'integrations'); setIsMobileMenuOpen(false); }}
               className={cn(
                 "w-full p-4 flex items-center gap-4 border-[4px] font-black uppercase text-sm transition-all brutal-shadow duration-200 hover:-translate-y-1 active:scale-95",
                 currentView === v.id ? "bg-[var(--brand)] text-black border-black translate-x-2 -translate-y-1 shadow-none" : "bg-black text-white border-white hover:border-[var(--brand)]"
