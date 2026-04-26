@@ -555,21 +555,33 @@ Keep it to 1-2 authoritative sentences.`;
   };
 
   const seedBots = async (userId: string) => {
+    // ⚡ Bolt: Fix N+1 query problem by batch-fetching existing bots once
     const botsRef = collection(db, "users", userId, "bots");
+    const existingBotsSnap = await getDocs(botsRef);
+    const existingTypes = new Set(existingBotsSnap.docs.map(doc => doc.data().type));
+
+    const creationPromises = [];
+
     for (const bt of BOT_TYPES) {
-      const isTrading = ["kalshi", "polymarket", "alpaca", "coinbase"].includes(bt.id);
-      const docRef = doc(botsRef, bt.id);
-      const snap = await getDocs(query(botsRef, where("type", "==", bt.id)));
-      if (snap.empty) {
-        await setDoc(docRef, {
-          userId, name: bt.name, type: bt.id, status: isTrading ? "online" : "auth-required",
-          config: { 
-            ...(isTrading ? { scheduleType: "interval", intervalMs: 300000 } : {}),
-            userGoal: globalDirective
-          },
-          createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
-        });
+      if (!existingTypes.has(bt.id)) {
+        const isTrading = ["kalshi", "polymarket", "alpaca", "coinbase"].includes(bt.id);
+        const docRef = doc(botsRef, bt.id);
+        creationPromises.push(
+          setDoc(docRef, {
+            userId, name: bt.name, type: bt.id, status: isTrading ? "online" : "auth-required",
+            config: {
+              ...(isTrading ? { scheduleType: "interval", intervalMs: 300000 } : {}),
+              userGoal: globalDirective
+            },
+            createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+          })
+        );
       }
+    }
+
+    // ⚡ Bolt: Execute creations concurrently
+    if (creationPromises.length > 0) {
+      await Promise.all(creationPromises);
     }
   };
 
