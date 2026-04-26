@@ -9,26 +9,26 @@ interface LandingProps {
 
 export const Landing: React.FC<LandingProps> = ({ login }) => {
   return (
-    <div className="min-h-screen bg-[#050505] text-white selection:bg-[#D4FF00] selection:text-black overflow-hidden font-sans relative">
+    <div className="min-h-screen bg-[var(--bg)] text-white selection:bg-[var(--brand)] selection:text-black overflow-hidden font-sans relative">
       {/* Dynamic Grid Background */}
-      <div className="absolute inset-0 opacity-[0.1]" 
-           style={{ backgroundImage: `linear-gradient(to right, #333 1px, transparent 1px), linear-gradient(to bottom, #333 1px, transparent 1px)`, backgroundSize: '40px 40px' }} />
+      <div className="absolute inset-0 opacity-[0.05]" 
+           style={{ backgroundImage: `linear-gradient(to right, #FFF 1px, transparent 1px), linear-gradient(to bottom, #FFF 1px, transparent 1px)`, backgroundSize: '40px 40px' }} />
       
       {/* Background Glows */}
-      <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-[#D4FF00]/10 blur-[120px] rounded-full pointer-events-none" />
-      <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-[#D4FF00]/5 blur-[120px] rounded-full pointer-events-none" />
+      <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-[var(--brand)]/10 blur-[120px] rounded-full pointer-events-none" />
+      <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-[var(--brand)]/5 blur-[120px] rounded-full pointer-events-none" />
 
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 p-8 flex justify-between items-center z-50">
          <div className="flex items-center gap-3">
-            <div className="bg-[#D4FF00] p-2 border-2 border-black brutal-shadow-mini">
+            <div className="bg-[var(--brand)] p-2 border-2 border-black brutal-shadow-mini">
                <Zap className="w-6 h-6 text-black fill-current" />
             </div>
             <span className="font-display text-2xl font-black uppercase tracking-tighter">Bot Boss</span>
          </div>
          <button 
            onClick={login}
-           className="hidden md:flex items-center gap-2 px-6 py-2 bg-black border-2 border-white/20 hover:border-[#D4FF00] hover:text-[#D4FF00] transition-all font-black uppercase text-[10px] brutal-shadow-mini"
+           className="hidden md:flex items-center gap-2 px-6 py-2 bg-black border-2 border-white/20 hover:border-[var(--brand)] hover:text-[var(--brand)] transition-all font-black uppercase text-[10px] brutal-shadow-mini"
          >
             Initialize Auth <ArrowRight className="w-3 h-3" />
          </button>
@@ -42,23 +42,23 @@ export const Landing: React.FC<LandingProps> = ({ login }) => {
            transition={{ duration: 0.8, ease: "easeOut" }}
            className="space-y-6"
          >
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#D4FF00]/10 border border-[#D4FF00]/30 rounded-full mb-4">
-               <span className="w-2 h-2 bg-[#D4FF00] rounded-full animate-pulse" />
-               <span className="text-[9px] font-black uppercase tracking-widest text-[#D4FF00]">Autonomous Fleet V.4.0 is Live</span>
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-[var(--brand)]/10 border border-[var(--brand)]/30 rounded-full mb-4">
+               <span className="w-2 h-2 bg-[var(--brand)] rounded-full animate-pulse" />
+               <span className="text-[9px] font-black uppercase tracking-widest text-[var(--brand)]">Autonomous Fleet V.4.0 is Live</span>
             </div>
             
-            <h1 className="display-type text-7xl md:text-9xl font-black leading-[0.85] tracking-tighter uppercase max-w-5xl mx-auto mb-8">
-               Manage Your <span className="text-[#D4FF00]">Digital</span> Empire
+            <h1 className="display-type text-4xl md:text-6xl font-black leading-[0.85] tracking-tighter uppercase max-w-5xl mx-auto mb-8">
+               Manage Your <span className="text-[var(--brand)]">Digital</span> Empire
             </h1>
             
-            <p className="max-w-2xl mx-auto text-white/50 font-mono text-xs md:text-sm leading-relaxed uppercase font-bold tracking-widest">
+            <p className="max-w-xl mx-auto text-white/50 font-mono text-xs leading-relaxed uppercase font-bold tracking-widest">
                The ultimate dashboard for fleet management. Deploy agents across E-commerce, Trading, and Social platforms with Zero-Latency monitoring.
             </p>
 
             <div className="pt-12 flex flex-col sm:flex-row gap-6 justify-center">
                <button 
                  onClick={login}
-                 className="px-10 py-5 bg-[#D4FF00] text-black border-[4px] border-black font-black uppercase text-sm brutal-shadow hover:-translate-y-2 active:translate-y-1 transition-all group flex items-center gap-3"
+                 className="px-10 py-5 bg-[var(--brand)] text-black border-[4px] border-black font-black uppercase text-sm brutal-shadow hover:-translate-y-2 active:translate-y-1 transition-all group flex items-center gap-3"
                >
                  Authorize Control <ShieldCheck className="w-5 h-5 group-hover:scale-110 transition-transform" />
                </button>
@@ -72,7 +72,7 @@ export const Landing: React.FC<LandingProps> = ({ login }) => {
                         ))}
                      </div>
                      <div className="text-left">
-                        <div className="text-[10px] font-black uppercase text-[#D4FF00]">7,204 Active Nodes</div>
+                        <div className="text-[10px] font-black uppercase text-[var(--brand)]">7,204 Active Nodes</div>
                         <div className="text-[8px] font-black uppercase text-white/40 italic">Syncing across 12 platforms</div>
                      </div>
                   </div>
@@ -92,10 +92,10 @@ export const Landing: React.FC<LandingProps> = ({ login }) => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2 + (i * 0.1) }}
-                className="p-8 border-[4px] border-white/5 bg-black/40 backdrop-blur-xl group hover:border-[#D4FF00] transition-all text-left brutal-shadow-mini"
+                className="p-8 border-[4px] border-white/5 bg-black/40 backdrop-blur-xl group hover:border-[var(--brand)] transition-all text-left brutal-shadow-mini"
               >
-                 <div className="w-12 h-12 bg-white/5 flex items-center justify-center p-3 mb-6 border border-white/10 group-hover:border-[#D4FF00] transition-colors">
-                    <f.icon className="w-full h-full text-white group-hover:text-[#D4FF00]" />
+                 <div className="w-12 h-12 bg-white/5 flex items-center justify-center p-3 mb-6 border border-white/10 group-hover:border-[var(--brand)] transition-colors">
+                    <f.icon className="w-full h-full text-white group-hover:text-[var(--brand)]" />
                  </div>
                  <h3 className="font-display text-xl font-black uppercase mb-3">{f.label}</h3>
                  <p className="text-white/40 text-[10px] font-mono font-bold leading-relaxed uppercase">{f.desc}</p>
@@ -122,9 +122,9 @@ export const Landing: React.FC<LandingProps> = ({ login }) => {
             <span>All Nodes Operational</span>
          </div>
          <div className="flex gap-4">
-            <span className="hover:text-[#D4FF00] cursor-pointer">Protocol</span>
-            <span className="hover:text-[#D4FF00] cursor-pointer">Compliance</span>
-            <span className="hover:text-[#D4FF00] cursor-pointer">Telemetry</span>
+            <span className="hover:text-[var(--brand)] cursor-pointer">Protocol</span>
+            <span className="hover:text-[var(--brand)] cursor-pointer">Compliance</span>
+            <span className="hover:text-[var(--brand)] cursor-pointer">Telemetry</span>
          </div>
       </div>
     </div>

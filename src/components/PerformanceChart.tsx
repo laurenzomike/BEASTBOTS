@@ -7,8 +7,8 @@ export function PerformanceChart({ data }: { data: { time: string; yield: number
         <AreaChart data={data}>
           <defs>
             <linearGradient id="colorYield" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#00FF41" stopOpacity={0.3}/>
-              <stop offset="95%" stopColor="#00FF41" stopOpacity={0}/>
+              <stop offset="5%" stopColor="var(--brand)" stopOpacity={0.3}/>
+              <stop offset="95%" stopColor="var(--brand)" stopOpacity={0}/>
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
@@ -22,12 +22,12 @@ export function PerformanceChart({ data }: { data: { time: string; yield: number
           <YAxis hide />
           <Tooltip 
             contentStyle={{ backgroundColor: '#000', border: '1px solid rgba(255,255,255,0.1)', fontSize: '10px' }}
-            itemStyle={{ color: '#00FF41' }}
+            itemStyle={{ color: 'var(--brand)' }}
           />
           <Area 
             type="monotone" 
             dataKey="yield" 
-            stroke="#00FF41" 
+            stroke="var(--brand)"
             fillOpacity={1} 
             fill="url(#colorYield)" 
             strokeWidth={1}

@@ -32,20 +32,23 @@ app.get("/api/health", (req, res) => {
 // OAuth Initialization Endpoint
 app.get("/api/oauth/:provider/url", (req, res) => {
   const { provider } = req.params;
-  const { uid, shop } = req.query; // uid is Firebase user ID, shop is for Shopify
+  const { uid, shop: rawShop } = req.query; // uid is Firebase user ID
   
   if (!uid) {
     return res.status(400).json({ error: "Missing uid query parameter" });
   }
 
+  // Handle Shopify shop name cleanup
+  let shop = rawShop ? String(rawShop).trim() : undefined;
+  if (provider === "shopify" && shop) {
+    shop = shop.replace(/^https?:\/\//, "").replace(/\.myshopify\.com\/?$/, "");
+  }
+
   // Construct secure state incorporating user ID
-  const stateData = { uid: String(uid), timestamp: Date.now(), shop: shop ? String(shop) : undefined };
+  const stateData = { uid: String(uid), timestamp: Date.now(), shop };
   const stateStr = Buffer.from(JSON.stringify(stateData)).toString("base64");
   
-  const appUrl = process.env.APP_URL;
-  if (!appUrl) {
-    console.warn("WARNING: APP_URL environment variable is missing. OAuth redirects may fail.");
-  }
+  const appUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
   const redirectUri = `${appUrl}/api/oauth/${provider}/callback`;
 
   let url = "";
@@ -53,7 +56,7 @@ app.get("/api/oauth/:provider/url", (req, res) => {
   try {
     if (provider === "etsy") {
       const clientId = process.env.ETSY_CLIENT_ID;
-      // Etsy requires PKCE. High-fidelity implementation:
+      // Etsy requires PKCE. 
       const codeVerifier = "abcdefghijklmnopqrstuvwxyz1234567890abcdef123456789012345";
       const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
       url = `https://www.etsy.com/oauth/connect?response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&scope=email_r%20listings_r%20listings_w%20listings_d%20transactions_r%20transactions_w%20billing_r%20profile_r%20profile_w%20shops_r%20shops_w&client_id=${clientId}&state=${stateStr}&code_challenge=${codeChallenge}&code_challenge_method=S256`;
@@ -114,14 +117,15 @@ app.get(["/api/oauth/:provider/callback", "/api/oauth/:provider/callback/"], asy
   try {
     const stateData = JSON.parse(Buffer.from(String(state), "base64").toString());
     const uid = stateData.uid;
-    const redirectUri = `${process.env.APP_URL}/api/oauth/${provider}/callback`;
+    const appUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
+    const redirectUri = `${appUrl}/api/oauth/${provider}/callback`;
 
     let tokenEndpoint = "";
-    let tokenHeaders: Record<string, string> = { "Content-Type": "application/x-www-form-urlencoded" };
-    let body: Record<string, string> = {
-      code: code as string,
-      client_id: process.env[`${provider.toUpperCase()}_CLIENT_ID`] || "",
-      client_secret: process.env[`${provider.toUpperCase()}_CLIENT_SECRET`] || "",
+    let tokenHeaders: any = { "Content-Type": "application/x-www-form-urlencoded" };
+    let body: any = {
+      code,
+      client_id: process.env[`${provider.toUpperCase()}_CLIENT_ID`],
+      client_secret: process.env[`${provider.toUpperCase()}_CLIENT_SECRET`],
       grant_type: "authorization_code",
       redirect_uri: redirectUri,
     };
@@ -133,13 +137,12 @@ app.get(["/api/oauth/:provider/callback", "/api/oauth/:provider/callback/"], asy
       tokenEndpoint = "https://api.pinterest.com/v1/oauth/token";
     } else if (provider === "gmail" || provider === "youtube") {
       tokenEndpoint = "https://oauth2.googleapis.com/token";
-      body.client_id = process.env.GOOGLE_CLIENT_ID || "";
-      body.client_secret = process.env.GOOGLE_CLIENT_SECRET || "";
+      body.client_id = process.env.GOOGLE_CLIENT_ID;
+      body.client_secret = process.env.GOOGLE_CLIENT_SECRET;
     } else if (provider === "ebay") {
       tokenEndpoint = "https://api.ebay.com/identity/v1/oauth2/token";
-      // eBay requires Basic Auth for token exchange and RuName as redirect_uri
       const authHeader = Buffer.from(`${process.env.EBAY_CLIENT_ID}:${process.env.EBAY_CLIENT_SECRET}`).toString('base64');
-      tokenHeaders = { "Authorization": `Basic ${authHeader}` };
+      tokenHeaders = { "Authorization": `Basic ${authHeader}`, "Content-Type": "application/x-www-form-urlencoded" };
       body.redirect_uri = process.env.EBAY_RU_NAME;
     } else if (provider === "facebook") {
       tokenEndpoint = "https://graph.facebook.com/v18.0/oauth/access_token";
@@ -156,20 +159,32 @@ app.get(["/api/oauth/:provider/callback", "/api/oauth/:provider/callback/"], asy
       body: new URLSearchParams(body).toString(),
     });
 
-    const tokens = await tokenResponse.json() as Record<string, any>;
+    const tokens = await tokenResponse.json();
+
+    if (tokens.error) {
+      console.error(`Oauth Token Error [${provider}]:`, tokens);
+      return res.status(400).send(`<html><body><h3>Authentication Error</h3><p>${tokens.error_description || tokens.error}</p></body></html>`);
+    }
 
     if (tokens.access_token) {
       // Store tokens in Firestore
       const botRef = db.collection("users").doc(uid).collection("bots").doc(provider);
+      
+      const configUpdate: any = {
+        tokens: {
+          accessToken: tokens.access_token,
+          refreshToken: tokens.refresh_token || null,
+          expiresAt: tokens.expires_in ? Date.now() + (tokens.expires_in * 1000) : Date.now() + 31536000000, // 1 year if not specified
+        }
+      };
+
+      if (provider === "shopify" && stateData.shop) {
+        configUpdate.shopName = stateData.shop;
+      }
+
       await botRef.set({
         status: "online",
-        config: {
-          tokens: {
-            accessToken: tokens.access_token,
-            refreshToken: tokens.refresh_token || null,
-            expiresAt: Date.now() + (tokens.expires_in * 1000 || 3600000),
-          }
-        },
+        config: configUpdate,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       }, { merge: true });
     }
@@ -797,7 +812,9 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0");
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+  });
 }
 
 startServer();

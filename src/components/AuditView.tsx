@@ -1,7 +1,9 @@
 import React from "react";
-import { ShieldAlert, Zap, BarChart3 } from "lucide-react";
+import { ShieldAlert, Zap, BarChart3, TrendingUp, Activity as ActivityIcon, Layers, Cpu, RefreshCw } from "lucide-react";
 import { Bot, Activity } from "../types";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
+import { motion } from "motion/react";
+import { cn } from "../lib/utils";
 
 interface AuditViewProps {
   bots: Bot[];
@@ -35,125 +37,135 @@ export const AuditView: React.FC<AuditViewProps> = ({ bots, activities }) => {
   const chartData = Object.entries(botStats).map(([name, value]) => ({ name, value }));
 
   return (
-    <div className="p-8 lg:p-12 space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700 max-w-7xl mx-auto">
-      {/* ... header remains ... */}
-      <div className="flex flex-col md:flex-col lg:flex-row lg:items-center justify-between gap-6 border-b-[4px] border-white pb-10">
-        <div className="flex items-center gap-6">
-          <div className="bg-[#FF2E00] p-4 brutal-shadow border-[4px] border-white">
-            <ShieldAlert className="w-12 h-12 text-white" />
+    <div className="flex flex-col gap-16 py-12 px-10 lg:px-14 animate-in fade-in slide-in-from-bottom-6 duration-1000 max-w-screen-2xl mx-auto overflow-hidden">
+      {/* Protocol Dashboard Header */}
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex flex-col lg:flex-row lg:items-end justify-between border-b border-white/10 pb-16 gap-12 relative"
+      >
+        <div className="absolute -top-40 -left-40 w-80 h-80 bg-[var(--brand)] blur-[150px] opacity-10 pointer-events-none" />
+        <div className="space-y-8 relative z-10 w-full lg:w-2/3">
+          <div className="flex items-center gap-4">
+             <div className="w-3 h-3 bg-[var(--brand)] animate-pulse" />
+             <span className="mono-type text-[10px] font-black uppercase text-[var(--brand)] tracking-[0.5em] italic">System Audit v3.0</span>
           </div>
-          <div>
-            <h2 className="font-display text-4xl md:text-6xl font-black uppercase text-white tracking-widest leading-none">Fleet Audit</h2>
-            <p className="font-mono text-[10px] text-[var(--brand)] font-black uppercase mt-2 tracking-[0.3em]">Institutional grade analysis of autonomous agent performance.</p>
-          </div>
+          <h2 className="display-type text-5xl lg:text-[7vw] font-black uppercase tracking-tighter leading-[0.8] text-white italic group-hover:not-italic transition-all duration-1000">
+            FLEET <br /> <span className="text-white/20">PROTOCOL</span>
+          </h2>
+          <p className="mono-type text-[13px] font-medium text-white/40 max-w-xl leading-relaxed italic border-l-2 border-white/10 pl-6">
+            Autonomous multi-agent neural performance and capital velocity metrics. Fleet integrity verified across all nodes.
+          </p>
         </div>
-        <div className="flex flex-wrap gap-4">
-          <div className="bg-black border-2 border-white/20 p-4 brutal-shadow text-center min-w-[120px] flex-grow md:flex-grow-0">
-             <span className="block text-[var(--brand)] text-2xl font-black">{bots.filter(b => b.status === 'online').length}</span>
-             <span className="block text-[10px] text-white/50 uppercase font-bold text-nowrap">Active Units</span>
-          </div>
-          <div className="bg-black border-2 border-white/20 p-4 brutal-shadow text-center min-w-[120px] flex-grow md:flex-grow-0">
-            <span className="block text-[var(--accent)] text-2xl font-black">{totalWins}</span>
-            <span className="block text-[10px] text-white/50 uppercase font-bold text-nowrap">Total Wins</span>
-          </div>
-          <div className="bg-black border-2 border-white/20 p-4 brutal-shadow text-center min-w-[120px] flex-grow md:flex-grow-0">
-            <span className="block text-white text-2xl font-black">{reliability}%</span>
-            <span className="block text-[10px] text-white/50 uppercase font-bold text-nowrap">Reliability</span>
-          </div>
+        
+        <div className="w-full lg:w-auto grid grid-cols-2 gap-px bg-white/10 border border-white/10">
+           <div className="p-10 bg-[#0A0A0A] flex flex-col gap-3 group hover:bg-[#0F0F0F] transition-colors relative overflow-hidden">
+              <div className="absolute inset-x-0 bottom-0 h-1 bg-[var(--brand)] scale-x-0 group-hover:scale-x-100 transition-transform duration-700" />
+              <span className="mono-type text-[10px] font-black uppercase text-white/30 tracking-widest italic">Success_Rate</span>
+              <div className="flex items-baseline gap-2 relative z-10">
+                 <span className="text-2xl font-black text-white italic tabular-nums leading-none group-hover:not-italic transition-all">{reliability}</span>
+                 <span className="text-2xl font-black text-[var(--brand)]">%</span>
+              </div>
+           </div>
+           <div className="p-10 bg-[#0A0A0A] flex flex-col gap-3 group hover:bg-[#0F0F0F] transition-colors relative overflow-hidden border-l border-white/10">
+              <div className="absolute inset-x-0 bottom-0 h-1 bg-[var(--brand)] scale-x-0 group-hover:scale-x-100 transition-transform duration-700" />
+              <span className="mono-type text-[10px] font-black uppercase text-white/30 tracking-widest italic">Neural_Sync</span>
+              <span className="text-xl font-black text-white uppercase italic leading-none relative z-10">Optimum</span>
+           </div>
         </div>
-      </div>
+      </motion.div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white p-6 border-[4px] border-black brutal-shadow group hover:scale-[1.02] transition-all">
-          <span className="mono-type text-[9px] font-black uppercase opacity-60 block mb-2 text-black">Bot Memory</span>
-          <span className="text-4xl font-sans font-black text-black tracking-tighter">SECURED</span>
-          <p className="mt-3 font-mono text-[9px] font-bold text-black opacity-60 leading-tight">Bot context is isolated per neural link.</p>
-        </div>
-        <div className="bg-[var(--brand)] p-6 border-[4px] border-black brutal-shadow group hover:scale-[1.02] transition-all">
-          <span className="mono-type text-[9px] font-black uppercase opacity-60 block mb-2 text-black">Goal Progress</span>
-          <span className="text-4xl font-sans font-black text-black tracking-tighter">PHASE_1</span>
-          <p className="mt-3 font-mono text-[9px] font-bold text-black opacity-60 leading-tight">Fleet is currently optimizing towards $ directive.</p>
-        </div>
-        <div className="bg-black p-6 border-[4px] border-white brutal-shadow-red group hover:scale-[1.02] transition-all text-white">
-          <span className="mono-type text-[9px] font-black uppercase opacity-60 block mb-2">Sync Health</span>
-          <span className="text-4xl font-sans font-black text-[#FF2E00] tracking-tighter">NOMINAL</span>
-          <p className="mt-3 font-mono text-[9px] font-bold opacity-60 leading-tight">All systems functioning within defined parameters.</p>
-        </div>
-        <div className="bg-[var(--accent)] p-6 border-[4px] border-black brutal-shadow group hover:scale-[1.02] transition-all">
-          <span className="mono-type text-[9px] font-black uppercase opacity-60 block mb-2 text-white">Grid Coverage</span>
-          <span className="text-4xl font-sans font-black text-white tracking-tighter">GLOBAL</span>
-          <p className="mt-3 font-mono text-[9px] font-bold text-white/60 leading-tight">{bots.filter(b => b.status === "online").length}/14 nodes currently reporting live.</p>
-        </div>
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-px bg-white/10 border border-white/10">
+        {[
+          { label: "Active Nodes", val: bots.filter(b => b.status === "online").length, color: "text-[var(--brand)]" },
+          { label: "Total Yield", val: `SHARD_${totalWins}`, color: "text-white" },
+          { label: "Stability", val: "NOMINAL", color: "text-white/60" },
+          { label: "Memory", val: "ENCRYPTED", color: "text-white/40" },
+          { label: "Phase", val: "B3_ST", color: "text-white/30" },
+          { label: "Grid Reg", val: "G_01", color: "text-white/20" }
+        ].map((s, i) => (
+          <div key={i} className="bg-[#050505] p-10 flex flex-col gap-2 hover:bg-white/5 transition-colors group">
+            <span className="mono-type text-[9px] font-black uppercase text-white/20 tracking-[0.2em] group-hover:text-white transition-colors uppercase italic">{s.label}</span>
+            <span className={cn("text-2xl font-black italic tabular-nums tracking-tighter group-hover:not-italic transition-all", s.color)}>{s.val}</span>
+          </div>
+        ))}
       </div>
       
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        <div className="lg:col-span-12 xl:col-span-8 bg-[#0A0A0A] border-[4px] border-white p-8 brutal-shadow">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 mb-8">
-             <div className="flex items-center gap-4">
-                <BarChart3 className="w-8 h-8 text-[var(--brand)]" />
-                <h3 className="font-display text-2xl font-black uppercase tracking-tighter text-white">Performance Analytics</h3>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-px bg-white/10 border border-white/10">
+        <div className="lg:col-span-12 xl:col-span-8 bg-[#050505] p-12 lg:p-16 relative overflow-hidden group border-b xl:border-b-0 xl:border-r border-white/10">
+          <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-[var(--brand)]/40 to-transparent scale-x-0 group-hover:scale-x-100 transition-transform duration-1000" />
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-12 mb-16">
+             <div className="flex items-center gap-6">
+                <BarChart3 className="w-10 h-10 text-[var(--brand)]" />
+                <h3 className="display-type text-4xl lg:text-5xl font-black uppercase tracking-tighter text-white italic">Neural_Load</h3>
              </div>
-             <div className="flex bg-white/5 border-2 border-white/10 p-1">
+             <div className="flex bg-white/5 p-1 border border-white/10">
                 <button 
                   onClick={() => setChartMode('activity')}
-                  className={`px-4 py-2 text-[9px] font-black uppercase transition-all ${chartMode === 'activity' ? 'bg-[var(--brand)] text-black' : 'text-white/40 hover:text-white'}`}
+                  className={cn(
+                    "px-8 py-3 text-[10px] font-black uppercase transition-all duration-500 italic",
+                    chartMode === 'activity' ? 'bg-white text-black' : 'text-white/20 hover:text-white hover:bg-white/5'
+                  )}
                 >
-                  Log Volume
+                  Signals
                 </button>
                 <button 
                   onClick={() => setChartMode('efficiency')}
-                  className={`px-4 py-2 text-[9px] font-black uppercase transition-all ${chartMode === 'efficiency' ? 'bg-[var(--brand)] text-black' : 'text-white/40 hover:text-white'}`}
+                  className={cn(
+                    "px-8 py-3 text-[10px] font-black uppercase transition-all duration-500 italic",
+                    chartMode === 'efficiency' ? 'bg-white text-black' : 'text-white/20 hover:text-white hover:bg-white/5'
+                  )}
                 >
-                  Win Efficiency
+                  Ratio
                 </button>
              </div>
           </div>
 
-          <div className="h-[400px] w-full">
+          <div className="h-[450px] w-full pt-10">
              <ResponsiveContainer width="100%" height="100%">
                {chartMode === 'activity' ? (
                   <BarChart data={chartData}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
                     <XAxis 
                       dataKey="name" 
-                      stroke="#666" 
+                      stroke="rgba(255,255,255,0.2)" 
                       fontSize={10} 
                       tickFormatter={(val) => val.toUpperCase()}
                       axisLine={false}
                       tickLine={false}
                     />
-                    <YAxis stroke="#666" fontSize={10} axisLine={false} tickLine={false} />
+                    <YAxis stroke="rgba(255,255,255,0.2)" fontSize={10} axisLine={false} tickLine={false} />
                     <Tooltip 
-                      contentStyle={{ backgroundColor: '#000', border: '2px solid #D4FF00', borderRadius: '0', color: '#fff' }}
-                      itemStyle={{ color: '#D4FF00', fontSize: '12px', fontWeight: 'bold' }}
-                      cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+                      contentStyle={{ backgroundColor: '#020202', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '0' }}
+                      itemStyle={{ color: 'var(--brand)', fontSize: '11px', fontWeight: '900', textTransform: 'uppercase' }}
+                      cursor={{ fill: 'rgba(255,255,255,0.02)' }}
                     />
-                    <Bar dataKey="value" fill="#D4FF00">
+                    <Bar dataKey="value" barSize={60}>
                         {chartData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={index % 2 === 0 ? '#D4FF00' : '#FF2E00'} />
+                           <Cell key={`cell-${index}`} fill={index % 2 === 0 ? "var(--brand)" : "rgba(255,255,255,0.1)"} />
                         ))}
                     </Bar>
                   </BarChart>
-               ) : (
+                ) : (
                   <BarChart data={efficiencyData} layout="vertical">
-                    <XAxis type="number" stroke="#666" fontSize={10} axisLine={false} tickLine={false} />
+                    <XAxis type="number" stroke="rgba(255,255,255,0.2)" fontSize={10} axisLine={false} tickLine={false} />
                     <YAxis 
                       dataKey="name" 
                       type="category" 
-                      stroke="#666" 
+                      stroke="rgba(255,255,255,0.2)" 
                       fontSize={10} 
                       tickFormatter={(val) => val.toUpperCase()} 
                       axisLine={false}
                       tickLine={false}
-                      width={80}
+                      width={120}
                     />
                     <Tooltip 
-                      contentStyle={{ backgroundColor: '#000', border: '2px solid #D4FF00', borderRadius: '0', color: '#fff' }}
-                      itemStyle={{ color: '#D4FF00', fontSize: '12px', fontWeight: 'bold' }}
-                      cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+                      contentStyle={{ backgroundColor: '#020202', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '0' }}
+                      itemStyle={{ color: 'var(--brand)', fontSize: '11px', fontWeight: '900', textTransform: 'uppercase' }}
                     />
-                    <Bar dataKey="ratio" name="Efficiency %" fill="#00D1FF" radius={[0, 4, 4, 0]}>
+                    <Bar dataKey="ratio" name="Efficiency %" barSize={32}>
                       {efficiencyData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={Number(entry.ratio) > 5 ? '#D4FF00' : '#444'} />
+                        <Cell key={`cell-${index}`} fill={Number(entry.ratio) > 5 ? "var(--brand)" : "rgba(255,255,255,0.1)"} />
                       ))}
                     </Bar>
                   </BarChart>
@@ -162,66 +174,82 @@ export const AuditView: React.FC<AuditViewProps> = ({ bots, activities }) => {
           </div>
         </div>
 
-        <div className="lg:col-span-12 xl:col-span-4 bg-[#FF2E00]/10 border-[4px] border-[#FF2E00] p-8 brutal-shadow overflow-hidden relative group">
-           <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-              <Zap className="w-48 h-48 animate-pulse" />
+        <div className="lg:col-span-12 xl:col-span-4 bg-[#050505] p-12 lg:p-16 relative overflow-hidden group">
+           <div className="absolute top-0 right-0 p-12 opacity-5 group-hover:opacity-10 transition-opacity rotate-12 scale-150">
+              <Zap className="w-64 h-64 text-[var(--accent)]" />
            </div>
            <div className="relative z-10 h-full flex flex-col">
-              <div className="flex items-center gap-3 mb-6">
-                 <div className="w-2 h-2 bg-[#FF2E00] animate-ping" />
-                 <h3 className="font-display text-2xl font-black uppercase text-[#FF2E00]">Strategic Evolution</h3>
+              <div className="flex items-center justify-between mb-12">
+                 <div className="flex items-center gap-4">
+                    <div className="w-3 h-3 bg-[var(--accent)] animate-pulse" />
+                    <h3 className="display-type text-4xl font-black uppercase text-white italic tracking-tighter">BEAST_Intel</h3>
+                 </div>
+                 <Cpu className="w-6 h-6 text-white/20" />
               </div>
-              <p className="mono-type text-[9px] font-black uppercase text-[#FF2E00] mb-8 leading-tight">
-                Collective intelligence broadcasted via fleet-wide neural links. Patterns detected by one are shared with all.
-              </p>
               
-              <div className="flex-grow space-y-4 overflow-y-auto max-h-[350px] pr-2 custom-scrollbar">
+              <div className="flex-grow space-y-8 overflow-y-auto max-h-[450px] pr-4 custom-scrollbar">
                 {intelLogs.length === 0 ? (
-                  <div className="border border-[#FF2E00]/20 p-6 text-center opacity-40">
-                     <span className="mono-type text-[8px] uppercase font-black italic">No strategic updates detected yet.</span>
+                  <div className="border border-white/10 p-16 text-center opacity-20 bg-white/[0.02] flex flex-col items-center gap-4">
+                     <RefreshCw className="w-8 h-8 animate-spin" />
+                     <span className="mono-type text-[10px] uppercase font-black italic tracking-[0.3em]">SYNCHRONIZING_CORE...</span>
                   </div>
                 ) : (
                   intelLogs.map((log, i) => (
-                    <div key={i} className="border-l-2 border-[#FF2E00] bg-black/40 p-4 hover:bg-[#FF2E00]/20 transition-colors">
-                       <span className="block mono-type text-[8px] uppercase text-[#FF2E00] opacity-60 mb-2">{log.timestamp?.toDate().toLocaleTimeString()}</span>
-                       <p className="text-[10px] text-white/90 font-bold leading-relaxed">{log.text}</p>
+                    <div key={i} className="border-l-4 border-[var(--accent)] bg-white/5 p-8 group/log hover:bg-white/10 transition-all duration-700 relative">
+                       <div className="absolute top-0 right-0 p-4 opacity-10 group-hover/log:opacity-40 transition-opacity">
+                          <ShieldAlert className="w-4 h-4" />
+                       </div>
+                       <span className="block mono-type text-[10px] uppercase text-[var(--accent)] font-black mb-4 italic tracking-widest">[{log.timestamp?.toDate().toLocaleTimeString()}]</span>
+                       <p className="mono-type text-[15px] text-white/70 group-hover/log:text-white leading-relaxed font-bold transition-colors">{log.text}</p>
                     </div>
                   ))
                 )}
-              </div>
-
-              <div className="mt-8 pt-6 border-t border-[#FF2E00]/20">
-                 <div className="flex items-center justify-between">
-                    <span className="text-[8px] font-black uppercase text-[#FF2E00]">Synaptic Sync Status</span>
-                    <span className="text-[10px] font-mono text-white font-black uppercase bg-[#FF2E00] px-2">ACTIVE</span>
-                 </div>
               </div>
            </div>
         </div>
       </div>
 
-      <div className="bg-[#1A1A1A] border-[4px] border-white brutal-shadow p-10 text-white overflow-hidden relative">
-        <Zap className="absolute top-[-20px] right-[-20px] w-64 h-64 text-white/5 pointer-events-none" />
-        <h3 className="font-display text-3xl font-black uppercase tracking-tighter border-b-2 border-white/20 pb-4 mb-8">Recent Activity</h3>
-        <div className="space-y-6 relative z-10">
+      <div className="bg-[#050505] border border-white/10 p-12 lg:p-16 relative overflow-hidden group">
+        <div className="absolute top-0 right-0 p-16 opacity-5 scale-150 rotate-45 pointer-events-none">
+           <Layers className="w-80 h-80" />
+        </div>
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-16 border-b border-white/10 pb-10 relative z-10 gap-8">
+           <h3 className="display-type text-xl lg:text-2xl font-black uppercase tracking-tighter text-white italic">Recent_Signals</h3>
+           <div className="flex items-center gap-4">
+              <ActivityIcon className="w-6 h-6 text-[var(--brand)] animate-pulse" />
+              <span className="mono-type text-[10px] font-black uppercase text-white/20 tracking-[0.4em]">Node_Stream: ACTIVE</span>
+           </div>
+        </div>
+        <div className="grid grid-cols-1 gap-4 relative z-10">
           {strategicAnalysis.length === 0 ? (
-            <p className="text-sm font-mono opacity-40 uppercase italic">Waiting for bots to do something...</p>
+            <p className="mono-type text-sm font-black text-white/10 uppercase italic tracking-[0.5em] text-center py-32 bg-white/[0.02] border border-dashed border-white/10">SYSTEM_QUIET</p>
           ) : (
-            strategicAnalysis.slice(0, 5).map((act, i) => (
-              <div key={i} className="flex gap-6 items-start border-l-[3px] border-[var(--brand)] pl-6 py-2 bg-white/5">
-                <span className="mono-type text-[10px] font-black text-[var(--brand)] opacity-60 mt-1">[{act.timestamp?.toDate().toLocaleTimeString()}]</span>
-                <div className="flex flex-col gap-1">
-                  <span className="text-[10px] font-black uppercase opacity-100 bg-white text-black px-2 self-start mb-2">{act.botType}</span>
-                  <p className="font-sans text-sm font-bold opacity-80 leading-snug">{act.text}</p>
+            strategicAnalysis.slice(0, 8).map((act, i) => (
+              <motion.div 
+                key={i} 
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.1 }}
+                className="flex gap-10 items-start border-l border-white/10 pl-10 py-6 bg-white/[0.01] group/item hover:bg-white/5 transition-all duration-500 relative"
+              >
+                <div className="absolute left-0 top-0 w-[1px] h-0 group-hover/item:h-full bg-[var(--brand)] transition-all duration-700" />
+                <span className="mono-type text-[12px] font-black text-[var(--brand)] opacity-30 tabular-nums italic">0{i+1}</span>
+                <div className="flex flex-col gap-4">
+                  <div className="flex items-center gap-4">
+                     <span className="mono-type text-[10px] font-black uppercase bg-white/10 text-white/60 px-4 py-1.5 tracking-widest italic group-hover/item:bg-[var(--brand)] group-hover/item:text-black transition-all">{act.botType}</span>
+                     <span className="mono-type text-[10px] font-black uppercase text-white/15 tabular-nums">[{act.timestamp?.toDate().toLocaleTimeString()}]</span>
+                  </div>
+                  <p className="mono-type text-lg font-bold text-white/50 group-hover/item:text-white leading-relaxed transition-all italic selection:bg-[var(--brand)] selection:text-black">{act.text}</p>
                 </div>
-              </div>
+              </motion.div>
             ))
           )}
         </div>
       </div>
 
-      <div className="p-8 border-[4px] border-dashed border-white/20 text-center">
-        <p className="text-sm font-mono font-bold text-white/40 uppercase tracking-[0.5em]">End of Global Fleet Audit Log</p>
+      <div className="py-20 flex flex-col items-center gap-6 opacity-20">
+        <div className="w-px h-24 bg-white" />
+        <p className="mono-type text-[10px] font-black text-white uppercase tracking-[1em]">SYSTEM_END_AUDIT</p>
       </div>
     </div>
   );

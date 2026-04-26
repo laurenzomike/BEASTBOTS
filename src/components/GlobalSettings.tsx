@@ -54,7 +54,7 @@ export const GlobalSettings: React.FC<GlobalSettingsProps> = ({
             {/* Header */}
             <div className="bg-black p-4 flex justify-between items-center">
               <div className="flex items-center gap-2">
-                <Shield className="text-[#D4FF00] w-5 h-5" />
+                <Shield className="text-[var(--brand)] w-5 h-5" />
                 <span className="mono-type text-xs font-black uppercase text-white tracking-widest">Global Systems Config // V1.0.4</span>
               </div>
               <button 
@@ -77,7 +77,7 @@ export const GlobalSettings: React.FC<GlobalSettingsProps> = ({
                     <span className="mono-type text-[10px] uppercase font-black opacity-40 block">Authenticated As</span>
                     <span className="font-sans font-black">{user.email}</span>
                   </div>
-                  <div className="flex items-center gap-2 text-[10px] mono-type font-black uppercase bg-[#D4FF00] px-2 py-1 border-[1px] border-black italic">
+                  <div className="flex items-center gap-2 text-[10px] mono-type font-black uppercase bg-[var(--brand)] px-2 py-1 border-[1px] border-black italic">
                     <Lock className="w-3 h-3" /> Encrypted Session
                   </div>
                 </div>
@@ -96,12 +96,12 @@ export const GlobalSettings: React.FC<GlobalSettingsProps> = ({
                   <textarea 
                     value={localDirective}
                     onChange={(e) => setLocalDirective(e.target.value)}
-                    className="w-full h-32 bg-white border-4 border-black p-4 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-[#D4FF00] resize-none"
+                    className="w-full h-32 bg-white border-4 border-black p-4 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-[var(--brand)] resize-none"
                     placeholder="Enter universal mission parameters..."
                   />
                   <button 
                     type="submit"
-                    className="flex items-center gap-2 px-6 py-3 bg-[#D4FF00] text-black border-4 border-black font-black uppercase text-xs brutal-shadow hover:-translate-y-1 active:translate-y-0 transition-transform"
+                    className="flex items-center gap-2 px-6 py-3 bg-[var(--brand)] text-black border-4 border-black font-black uppercase text-xs brutal-shadow hover:-translate-y-1 active:translate-y-0 transition-transform"
                   >
                     <Save className="w-4 h-4" /> Broadcast Protocol
                   </button>
@@ -121,7 +121,7 @@ export const GlobalSettings: React.FC<GlobalSettingsProps> = ({
                       onClick={() => onPersonaChange(p)}
                       className={cn(
                         "p-4 border-4 border-black text-[10px] font-black uppercase brutal-shadow-mini transition-all",
-                        persona === p ? "bg-black text-[#D4FF00] -translate-y-1" : "bg-white hover:bg-gray-100"
+                        persona === p ? "bg-black text-[var(--brand)] -translate-y-1" : "bg-white hover:bg-gray-100"
                       )}
                     >
                       {p}

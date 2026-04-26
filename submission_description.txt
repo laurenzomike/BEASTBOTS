@@ -1,3 +1,0 @@
-🎯 **What:** The testing gap addressed is the missing error test in logout within src/lib/firebase.ts.
-📊 **Coverage:** The scenarios now tested include testing login and logout successful paths, as well as testing login and logout when the respective promises reject. Also tested handleFirestoreError to make sure it throws the appropriate exceptions.
-✨ **Result:** The test suite for src/lib/firebase.ts has full coverage now, ensuring that error scenarios in login/logout operations are successfully logged and handled.

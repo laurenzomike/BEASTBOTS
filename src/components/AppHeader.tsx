@@ -24,23 +24,24 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   const totalObjectivesMet = bots.reduce((acc, curr) => acc + (curr.config?.winCount || 0), 0);
 
   return (
-    <header className="z-10 bg-[var(--brand)] text-black relative overflow-hidden">
-      {/* Live Ticker Strip */}
-      <div className="bg-black text-[var(--brand)] py-1 overflow-hidden whitespace-nowrap border-b-2 border-black flex">
+    <header className="z-10 bg-[#020202] text-white border-b border-white/10 relative overflow-hidden">
+      {/* Dynamic Digital Header Strip */}
+      <div className="bg-[var(--brand)] text-black py-1.5 overflow-hidden whitespace-nowrap flex border-b border-black select-none">
          <motion.div 
            initial={{ x: "0%" }}
            animate={{ x: "-50%" }}
            transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
-           className="flex gap-12 font-mono text-[8px] font-black uppercase tracking-widest pointer-events-none pr-12"
+           className="flex gap-20 font-mono text-[8px] font-black uppercase tracking-[0.3em] pointer-events-none"
          >
-            {[...Array(10)].map((_, i) => (
+            {[...Array(12)].map((_, i) => (
                <React.Fragment key={i}>
-                  <span>// FLEET_STATUS: NOMINAL</span>
-                  <span>// AI_READY: 100%</span>
-                  <span>// LATENCY: 24MS</span>
-                  <span>// UPTIME: 99.98%</span>
-                  <span>// LOAD: BALANCED</span>
-                  <span>// PROTOCOL: EXTREME_GROWTH</span>
+                  <div className="flex items-center gap-6">
+                     <span className="opacity-40">SIGNAL: NOMINAL</span>
+                     <div className="w-1 h-1 bg-black rounded-full" />
+                     <span>SYS_INTEGRITY: 100%</span>
+                     <div className="w-1 h-1 bg-black rounded-full" />
+                     <span className="opacity-40">GRID: SYNCED</span>
+                  </div>
                </React.Fragment>
             ))}
          </motion.div>
@@ -48,60 +49,83 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
            initial={{ x: "0%" }}
            animate={{ x: "-50%" }}
            transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
-           className="flex gap-12 font-mono text-[8px] font-black uppercase tracking-widest pointer-events-none pr-12"
+           className="flex gap-20 font-mono text-[8px] font-black uppercase tracking-[0.3em] pointer-events-none"
          >
-            {[...Array(10)].map((_, i) => (
+            {[...Array(12)].map((_, i) => (
                <React.Fragment key={i}>
-                  <span>// FLEET_STATUS: NOMINAL</span>
-                  <span>// AI_READY: 100%</span>
-                  <span>// LATENCY: 24MS</span>
-                  <span>// UPTIME: 99.98%</span>
-                  <span>// LOAD: BALANCED</span>
-                  <span>// PROTOCOL: EXTREME_GROWTH</span>
+                  <div className="flex items-center gap-6">
+                     <span className="opacity-40">SIGNAL: NOMINAL</span>
+                     <div className="w-1 h-1 bg-black rounded-full" />
+                     <span>SYS_INTEGRITY: 100%</span>
+                     <div className="w-1 h-1 bg-black rounded-full" />
+                     <span className="opacity-40">GRID: SYNCED</span>
+                  </div>
                </React.Fragment>
             ))}
          </motion.div>
       </div>
 
-      <div className="p-6 md:p-12 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-white/20 rotate-45 translate-x-32 -translate-y-32 pointer-events-none" />
-        <div className="flex flex-col md:flex-row justify-between items-end relative z-10">
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center gap-3 mb-2">
-             <div className="w-4 h-4 bg-[#FF2E00] brutal-shadow-red animate-pulse border-2 border-black" />
-             <span className="mono-type text-[10px] font-black uppercase bg-black px-2 py-1 text-white">System Online</span>
-             <span className="mono-type text-[10px] font-black uppercase bg-[var(--accent)] px-2 py-1 text-white">
-                {totalObjectivesMet} Objectives Met
-             </span>
-          </div>
-          <h1 className="display-type text-4xl sm:text-5xl md:text-[8vw] font-black uppercase tracking-tighter leading-none text-black">Bot Boss</h1>
-        </div>
-        <div className="mt-8 md:mt-0 flex flex-col items-end gap-2">
-           <span className="mono-type text-xs font-black uppercase bg-black text-white px-3 py-1">User: {user.email?.split('@')[0]}</span>
-           <div className="flex gap-4">
-              <button 
-                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} 
-                className="lg:hidden p-2 border-4 border-black"
-                title="Toggle Menu"
-              >
-                <Layers className="w-8 h-8" />
-              </button>
-              <button 
-                onClick={() => setIsSettingsOpen(true)}
-                title="Settings" 
-                className="p-2 border-4 border-black hover:bg-black hover:text-white transition-all"
-              >
-                <Settings className="w-8 h-8" />
-              </button>
-              <button 
-                onClick={logout} 
-                title="Logout" 
-                className="p-2 border-4 border-black text-red-600 hover:bg-red-600 hover:text-white transition-all"
-              >
-                <LogOut className="w-8 h-8" />
-              </button>
+      <div className="px-10 py-12 lg:px-14 lg:py-16 relative group">
+        <div className="absolute top-0 right-0 w-1/3 h-full bg-white/2 skew-x-[30deg] translate-x-1/4 pointer-events-none group-hover:bg-white/5 transition-colors duration-1000" />
+        
+        <div className="flex flex-col lg:flex-row justify-between items-end relative z-10 gap-12">
+           <div className="flex flex-col gap-8 w-full lg:w-auto">
+              <div className="flex items-center gap-8">
+                 <div className="flex flex-col">
+                    <span className="mono-type text-[9px] font-black uppercase text-[var(--brand)] mb-2 tracking-[0.4em] italic opacity-80">Operational Pulse</span>
+                    <div className="flex items-center gap-4">
+                       <motion.div 
+                          animate={{ scale: [1, 1.3, 1], opacity: [0.3, 1, 0.3] }}
+                          transition={{ duration: 1.5, repeat: Infinity }}
+                          className="w-2 h-2 bg-[var(--brand)]" 
+                       />
+                       <span className="display-type text-2xl font-black italic tabular-nums tracking-tighter">00:24:14:92</span>
+                    </div>
+                 </div>
+                 <div className="h-10 w-px bg-white/10" />
+                 <div className="flex flex-col">
+                    <span className="mono-type text-[9px] font-black uppercase text-white/20 mb-2 tracking-[0.4em] italic">Fleet Efficiency</span>
+                    <span className="display-type text-2xl font-black italic tabular-nums tracking-tighter text-white/40">98.2%</span>
+                 </div>
+              </div>
+              <h1 className="display-type text-4xl sm:text-6xl lg:text-7xl font-black uppercase tracking-tighter leading-none text-white italic group-hover:not-italic transition-all duration-1000">
+                 BEAST BOTS
+              </h1>
            </div>
-        </div>
+
+           <div className="flex flex-col items-end gap-8 w-full lg:w-auto">
+              <div className="flex items-center gap-4">
+                 <div className="flex flex-col items-end">
+                    <span className="mono-type text-[9px] font-black uppercase text-white/10 tracking-[0.3em]">Auth Operator</span>
+                    <span className="display-type text-xl font-black uppercase italic text-white/40 hover:text-white transition-colors duration-500">{user.email?.split('@')[0]}</span>
+                 </div>
+                 <div className="w-14 h-14 border border-white/10 flex items-center justify-center p-1 group-hover:border-[var(--brand)]/30 transition-colors duration-1000 relative">
+                    <div className="absolute inset-x-0 bottom-0 h-1 bg-[var(--brand)] scale-x-0 group-hover:scale-x-100 transition-transform duration-700" />
+                    <div className="w-full h-full bg-white/5" />
+                 </div>
+              </div>
+
+              <div className="flex gap-3">
+                 <button 
+                   onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} 
+                   className="lg:hidden w-14 h-14 border border-white/10 text-white flex items-center justify-center hover:bg-white hover:text-black transition-all"
+                 >
+                   <Layers className="w-6 h-6" />
+                 </button>
+                 <button 
+                   onClick={() => setIsSettingsOpen(true)}
+                   className="w-14 h-14 border border-white/10 text-white flex items-center justify-center hover:bg-[var(--brand)] hover:text-black hover:border-[var(--brand)] transition-all group/btn relative" 
+                 >
+                   <Settings className="w-6 h-6 group-hover/btn:rotate-180 transition-transform duration-1000" />
+                 </button>
+                 <button 
+                   onClick={logout} 
+                   className="w-14 h-14 border border-white/10 text-white/40 flex items-center justify-center hover:bg-[var(--accent)] hover:text-white hover:border-[var(--accent)] transition-all group/btn" 
+                 >
+                   <LogOut className="w-6 h-6 group-hover/btn:-translate-x-1 transition-transform" />
+                 </button>
+              </div>
+           </div>
         </div>
       </div>
     </header>

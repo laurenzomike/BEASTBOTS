@@ -9,8 +9,8 @@ interface AppFleetGridProps {
   bots: Bot[];
   searchQuery: string;
   setSearchQuery: (q: string) => void;
-  statusFilter: Bot['status'] | 'all';
-  setStatusFilter: (s: Bot['status'] | 'all') => void;
+  statusFilter: string;
+  setStatusFilter: (s: any) => void;
   bulkAction: (status: 'online' | 'offline') => void;
   filteredBots: Bot[];
   executingBots: Set<string>;
@@ -52,7 +52,7 @@ export const AppFleetGrid: React.FC<AppFleetGridProps> = ({
       <div className="hidden lg:grid grid-cols-2 xl:grid-cols-4 gap-6 px-12 pt-12">
          {[
            { label: "Total Fleet", value: bots.length, color: "bg-white", detail: "Defined Protocols" },
-           { label: "Active Cycles", value: bots.filter(b => b.status === 'online').length, color: "bg-[#D4FF00]", detail: "Online Units" },
+           { label: "Active Cycles", value: bots.filter(b => b.status === 'online').length, color: "bg-[var(--brand)]", detail: "Online Units" },
            { label: "Protocol Wins", value: bots.reduce((a, b) => a + (b.config?.winCount || 0), 0), color: "bg-[#00E0FF]", detail: "Strategic Success" },
            { label: "Active Threads", value: bots.reduce((a, b) => a + (b.config?.workflows?.length || 0), 0), color: "bg-[#FF2E00] text-white", detail: "Running Automations" }
          ].map(stat => (
@@ -61,7 +61,7 @@ export const AppFleetGrid: React.FC<AppFleetGridProps> = ({
                   <ActivityIcon className="w-4 h-4 animate-pulse" />
                </div>
                <span className="mono-type text-[10px] font-black uppercase opacity-60 block mb-1">{stat.label}</span>
-               <span className="text-5xl font-black tracking-tighter tabular-nums">{stat.value}</span>
+               <span className="text-xl font-black tracking-tighter tabular-nums">{stat.value}</span>
                <span className="block mt-2 mono-type text-[8px] font-black uppercase opacity-40">{stat.detail}</span>
             </div>
          ))}
@@ -77,9 +77,9 @@ export const AppFleetGrid: React.FC<AppFleetGridProps> = ({
                  placeholder="Search Nodes (Platform, ID, Custom Name)..."
                  value={searchQuery}
                  onChange={(e) => setSearchQuery(e.target.value)}
-                 className="w-full bg-black border-[4px] border-white/20 p-4 pl-12 mono-type text-[12px] text-white focus:border-[#D4FF00] focus:outline-none transition-colors"
+                 className="w-full bg-black border-[4px] border-white/20 p-4 pl-12 mono-type text-[12px] text-white focus:border-[var(--brand)] focus:outline-none transition-colors"
                />
-               <TrendingUp className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white opacity-20 group-focus-within:opacity-100 group-focus-within:text-[#D4FF00] transition-colors" />
+               <TrendingUp className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white opacity-20 group-focus-within:opacity-100 group-focus-within:text-[var(--brand)] transition-colors" />
             </div>
          </div>
          <div className="space-y-2 w-full md:w-auto">
@@ -87,10 +87,10 @@ export const AppFleetGrid: React.FC<AppFleetGridProps> = ({
             <div className="relative group brutal-shadow hover:-translate-y-1 hover:translate-x-1 transition-all duration-300">
                <select 
                  value={statusFilter}
-                 onChange={(e) => setStatusFilter(e.target.value as Bot['status'] | 'all')}
-                 className="w-full md:w-56 bg-black border-[4px] border-white/20 p-4 mono-type text-[10px] font-black uppercase text-white focus:border-[#D4FF00] outline-none cursor-pointer appearance-none pr-10"
+                 onChange={(e) => setStatusFilter(e.target.value as any)}
+                 className="w-full md:w-56 bg-black border-[4px] border-white/20 p-4 mono-type text-[10px] font-black uppercase text-white focus:border-[var(--brand)] outline-none cursor-pointer appearance-none pr-10"
                >
-                  <option value="all">Filture Nodes: All</option>
+                  <option value="all">Filter Nodes: All</option>
                   <option value="online">Status: Online [Active]</option>
                   <option value="offline">Status: Offline [Standby]</option>
                   <option value="auth-required">Condition: Needs Key</option>
@@ -118,9 +118,10 @@ export const AppFleetGrid: React.FC<AppFleetGridProps> = ({
       {activeBots.length > 0 && (
         <div className="px-4 lg:px-12 mt-12">
           <div className="flex items-center gap-4 mb-8">
-            <div className="w-2 h-8 bg-[#D4FF00]" />
-            <h2 className="display-type text-4xl font-black uppercase text-white tracking-tighter">Active Deployment</h2>
+            <div className="w-2 h-8 bg-[var(--brand)]" />
+            <h2 className="display-type text-2xl font-black uppercase text-white tracking-tighter">Active Deployment</h2>
           </div>
+          
           <motion.div 
             variants={{
               hidden: { opacity: 0 },
@@ -128,7 +129,7 @@ export const AppFleetGrid: React.FC<AppFleetGridProps> = ({
             }}
             initial="hidden"
             animate="show"
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 md:gap-8"
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-8"
           >
             {activeBots.map((bot, i) => {
               const lastLog = globalActivities.find(a => a.botId === bot.id)?.text || "";
@@ -189,7 +190,7 @@ export const AppFleetGrid: React.FC<AppFleetGridProps> = ({
       </AnimatePresence>
 
       {filteredBots.length === 0 && (
-        <div className="col-span-full py-32 text-center opacity-30 animate-pulse text-4xl font-black uppercase border-4 border-dashed border-white/10 flex flex-col items-center gap-4 mx-12 mt-12 mb-20">
+        <div className="col-span-full py-32 text-center opacity-30 animate-pulse text-2xl font-black uppercase border-4 border-dashed border-white/10 flex flex-col items-center gap-4 mx-12 mt-12 mb-20">
            <ActivityIcon className="w-16 h-16 mb-4" />
            No units match the current filter.
         </div>

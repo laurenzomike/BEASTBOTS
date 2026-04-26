@@ -98,20 +98,23 @@ service cloud.firestore {
         allow delete: if isVerified() && isOwner(userId) && isValidId(botId);
 
         match /memories/{memoryId} {
-          allow get, list: if isOwner(userId) && isValidId(memoryId);
+          allow get: if isOwner(userId) && isValidId(memoryId);
+          allow list: if isOwner(userId);
           allow create, update: if isVerified() && isOwner(userId) && isValidId(memoryId) && isValidMemory(incoming());
           allow delete: if isVerified() && isOwner(userId);
         }
 
         match /files/{fileId} {
-          allow get, list: if isOwner(userId) && isValidId(fileId);
+          allow get: if isOwner(userId) && isValidId(fileId);
+          allow list: if isOwner(userId);
           allow create: if isVerified() && isOwner(userId) && isValidId(fileId) && isValidFile(incoming());
           allow update: if false; // Knowledge assets are immutable once indexed
           allow delete: if isVerified() && isOwner(userId);
         }
 
         match /milestones/{milestoneId} {
-          allow get, list: if isOwner(userId) && isValidId(milestoneId);
+          allow get: if isOwner(userId) && isValidId(milestoneId);
+          allow list: if isOwner(userId);
           allow create: if isVerified() && isOwner(userId) && isValidId(milestoneId);
           allow update, delete: if false;
         }

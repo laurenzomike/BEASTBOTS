@@ -1,13 +1,13 @@
-import { X, Play, Loader2, Gauge, Power, Plus, Trash2, Save, ExternalLink, CheckCircle, TrendingUp, Sparkles, Calendar, Clock, Database, FileText, Brain, Upload, Zap, Lightbulb, Trophy, ChevronDown, ChevronUp, ChevronRight, ShieldAlert, Settings, Cpu } from "lucide-react";
+import { X, Play, Loader2, Gauge, Power, Plus, Trash2, Save, ExternalLink, CheckCircle, AlertCircle, TrendingUp, Sparkles, Calendar, Clock, Database, FileText, Brain, Upload, Zap, Lightbulb, Trophy, ChevronDown, ChevronUp, ChevronRight, ShieldAlert, Settings, Terminal, Cpu, Package, BarChart3, Mail, Activity, Activity as ActivityIcon } from "lucide-react";
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { doc, setDoc, serverTimestamp, collection, addDoc, query, where, onSnapshot, limit, orderBy, getDocs, deleteDoc } from "firebase/firestore";
-import { db, auth } from "../lib/firebase";
+import { db, handleFirestoreError, auth } from "../lib/firebase";
 import { cn } from "../lib/utils";
 import { GoogleGenAI } from "@google/genai";
 import { BOT_TYPES, PLATFORM_WORKFLOWS } from "../constants";
 import { BEHAVIORAL_TEMPLATES } from "../constants/prompts";
-import { Bot, Activity, BotFile, Milestone, PlatformInfo } from "../types";
+import { Bot, BotFile } from "../types";
 import { handleBotErrorTransition } from "../lib/errorUtils";
 import { suggestWorkflows } from "../services/suggestionService";
 
@@ -27,13 +27,15 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
   const [strategy, setStrategy] = useState<string>("standard");
   const [memories, setMemories] = useState<string[]>([]);
   const [files, setFiles] = useState<BotFile[]>([]);
-  const [milestones, setMilestones] = useState<Milestone[]>([]);
+  const [milestones, setMilestones] = useState<any[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isSuggesting, setIsSuggesting] = useState(false);
-  const [activities, setActivities] = useState<Activity[]>([]);
-  const [platformInfo, setPlatformInfo] = useState<PlatformInfo | null>(null);
+  const [workflowSuggestions, setWorkflowSuggestions] = useState<any[]>([]);
+  const [activities, setActivities] = useState<any[]>([]);
+  const [platformInfo, setPlatformInfo] = useState<any>(null);
   const [command, setCommand] = useState("");
   const [isProcessingCommand, setIsProcessingCommand] = useState(false);
+  const [systemDirective, setSystemDirective] = useState<string>(bot?.config?.systemDirective || "");
 
   const botDef = BOT_TYPES.find(t => t.id === bot?.type);
 
@@ -41,13 +43,14 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
     if (!bot) return;
     setWorkflows(bot.config?.workflows || []);
     setStrategy(bot.config?.strategy || "standard");
+    setSystemDirective(bot.config?.systemDirective || "");
     
     const params = bot.config?.parameters || {};
     setParameters(Object.entries(params).map(([key, value]) => ({ key, value: String(value) })));
 
     // Real-time stats simulation
     const interval = setInterval(() => {
-       setPlatformInfo((prev: PlatformInfo | null) => {
+       setPlatformInfo((prev: any) => {
          if (!prev) return prev;
          return {
            ...prev,
@@ -178,6 +181,22 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
     }
   };
 
+  const handleSaveDirective = async () => {
+    if (!bot || !auth.currentUser) return;
+    setIsSaving(true);
+    try {
+      await setDoc(doc(db, "users", auth.currentUser.uid, "bots", bot.id), {
+        config: { ...bot.config, systemDirective },
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+      addLog(`System Directive updated to custom configuration.`);
+    } catch (e) {
+      console.error("Failed to save directive:", e);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleUpdateParameter = (key: string, value: any) => {
     setParameters(prev => {
       const exists = prev.find(p => p.key === key);
@@ -239,39 +258,62 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
     setWorkflows(workflows.map(w => w.id === id ? { ...w, [field]: value } : w));
   };
 
-  const handleUploadFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files?.length) return;
-    setIsUploading(true);
-    const file = e.target.files[0];
+  const handleUploadFile = async (e: React.ChangeEvent<HTMLInputElement> | React.DragEvent) => {
+    let file: File | null = null;
     
-    addLog(`Initiating secure upload sequence for ${file.name}...`);
+    // Support both direct input and drag events
+    if ('target' in e && (e.target as HTMLInputElement).files?.length) {
+      file = (e.target as HTMLInputElement).files![0];
+    } else if ('dataTransfer' in e && e.dataTransfer.files?.length) {
+      file = e.dataTransfer.files[0];
+      e.preventDefault();
+    }
+
+    if (!file) return;
+    setIsUploading(true);
+    
+    addLog(`Initiating secure ingestion for ${file.name}...`);
     
     try {
-      const textProcessing = new Promise<string>((resolve, reject) => {
+      const textProcessing = new Promise<string>((resolve) => {
         const reader = new FileReader();
-        reader.onload = (event) => {
-          let text = (event.target?.result as string) || "";
-          // Truncate to 4500 chars to respect Firestore document rule limits
-          resolve(text.substring(0, 4500)); 
-        };
-        reader.onerror = () => resolve("Binary or unreadable format. File referenced only.");
-        reader.readAsText(file);
+        reader.onload = (event) => resolve((event.target?.result as string) || "");
+        reader.onerror = () => resolve("");
+        reader.readAsText(file!);
       });
 
-      const extractedText = await textProcessing;
+      const rawText = await textProcessing;
+      addLog(`Neural processing initiated... Ingesting ${rawText.length} characters.`);
+
+      let summary = "Processing failure: No content extracted.";
+      if (rawText.trim()) {
+        try {
+          const prompt = `Synthesize a highly tactical, 1-sentence summary of this document for a BEAST BOT knowledge base. Focus on mission-critical utility. Document: ${rawText.substring(0, 8000)}`;
+          const result = await ai.models.generateContent({
+            model: "gemini-3.1-pro-preview",
+            contents: prompt
+          });
+          summary = result.text || "AI Synthesis failed. Partial fragment stored.";
+        } catch (aiErr) {
+          console.error("AI Summary failed", aiErr);
+          summary = rawText.substring(0, 300) + "... [RAW_FRAGMENT]";
+        }
+      }
 
       const filesRef = collection(db, "users", auth.currentUser!.uid, "bots", bot.id, "files");
       await addDoc(filesRef, {
+        userId: auth.currentUser!.uid,
+        botId: bot.id,
         fileName: file.name,
         fileSize: file.size,
-        contentType: file.type || "unknown",
-        contentSummary: extractedText || "Empty file content.",
+        contentType: file.type || "unknown/data",
+        contentSummary: summary,
         createdAt: serverTimestamp()
       });
-      addLog(`Knowledge asset "${file.name}" uploaded and parsed into memory context.`);
+      addLog(`Knowledge asset "${file.name}" summarized and committed to node memory.`);
     } catch (e) {
-      console.error(e);
-      addLog(`[ERROR] Failed to ingest file: ${e instanceof Error ? e.message : 'Unknown'}`);
+      console.error("Ingestion failed", e);
+      addLog(`[INGESTION_ERROR] System failed to process ${file.name}. Integrity check required.`);
     } finally {
       setIsUploading(false);
     }
@@ -289,23 +331,35 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
   const handleSuggestWorkflows = async () => {
     if (isSuggesting) return;
     setIsSuggesting(true);
+    setWorkflowSuggestions([]);
     addLog("Consulting AI for specialized workflow suggestions...");
     try {
       const suggestions = await suggestWorkflows(bot.type, bot.config?.userGoal || "Business Growth", workflows);
       if (suggestions.length > 0) {
-        const newWorkflows = suggestions.map((s: any) => ({
+        setWorkflowSuggestions(suggestions.map((s: any) => ({
           id: Date.now() + Math.random(),
           ...s,
           active: true
-        }));
-        setWorkflows([...workflows, ...newWorkflows]);
-        addLog(`Imported ${suggestions.length} AI-recommended pipeline actions.`);
+        })));
+        addLog(`Received ${suggestions.length} AI workflow suggestions.`);
+      } else {
+        addLog(`No new workflow suggestions generated.`);
       }
     } catch (e) {
       addLog("Failed to fetch AI suggestions.");
     } finally {
       setIsSuggesting(false);
     }
+  };
+
+  const acceptSuggestion = (suggestion: any) => {
+    setWorkflows([...workflows, suggestion]);
+    setWorkflowSuggestions(workflowSuggestions.filter(s => s.id !== suggestion.id));
+    addLog(`Imported AI-recommended pipeline action.`);
+  };
+
+  const rejectSuggestion = (suggestionId: number) => {
+    setWorkflowSuggestions(workflowSuggestions.filter(s => s.id !== suggestionId));
   };
 
   const sectionVariants = {
@@ -362,10 +416,12 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
           animate={{ x: 0 }}
           exit={{ x: "100%" }}
           transition={{ type: "spring", damping: 30, stiffness: 300, mass: 1 }}
-          className="fixed inset-y-0 right-0 w-full lg:w-[500px] xl:w-[640px] bg-[#0A0A0A] border-l-[8px] border-black z-50 overflow-y-auto selection:bg-[var(--brand)] selection:text-black shadow-[-20px_0_60px_0_rgba(0,0,0,0.8)]"
+          className="fixed inset-y-0 right-0 w-full lg:w-[600px] xl:w-[700px] bg-[#020202] border-l-2 border-white/10 z-50 overflow-y-auto selection:bg-[var(--brand)] selection:text-black shadow-[-40px_0_100px_rgba(0,0,0,0.9)] custom-scrollbar"
         >
+          <div className="absolute inset-x-0 top-0 h-[2px] bg-[var(--brand)]/20 blur-sm animate-[scan_3s_linear_infinite] z-50 pointer-events-none" />
+          
           <motion.div 
-            className="p-6 lg:p-10 text-white"
+            className="p-10 lg:p-14 text-white relative"
           variants={{
             hidden: { opacity: 0 },
             show: { opacity: 1, transition: { staggerChildren: 0.1, delayChildren: 0.2 } }
@@ -373,36 +429,38 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
           initial="hidden"
           animate="show"
         >
-          <motion.div variants={sectionVariants} className="flex justify-between items-start mb-12">
-            <div className="flex gap-6 items-center">
+          <motion.div variants={sectionVariants} className="flex justify-between items-start mb-16">
+            <div className="flex gap-8 items-center">
               <div className="relative group">
-                <div className="w-20 h-20 bg-black border-4 border-black brutal-shadow-mini overflow-hidden flex items-center justify-center shrink-0">
+                <div className="w-24 h-24 bg-black border border-white/20 overflow-hidden flex items-center justify-center shrink-0 relative">
+                  <div className="absolute inset-0 bg-[var(--brand)]/5 group-hover:bg-[var(--brand)]/10 transition-colors" />
                   {bot.avatar ? (
-                    <img src={bot.avatar} alt="Avatar" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    <img src={bot.avatar} alt="Avatar" className="w-full h-full object-cover relative z-10" referrerPolicy="no-referrer" />
                   ) : (
-                    <Cpu className="w-10 h-10 text-white opacity-20" />
+                    <Cpu className="w-12 h-12 text-white/20" />
                   )}
                 </div>
-                <label className="absolute -bottom-2 -right-2 p-1.5 bg-black text-white hover:bg-white hover:text-black border-2 border-black cursor-pointer transition-colors shadow-[2px_2px_0_0_#000]">
+                <label className="absolute -bottom-2 -right-2 w-10 h-10 bg-white text-black hover:bg-[var(--brand)] border-2 border-black cursor-pointer transition-all flex items-center justify-center shadow-lg hover:scale-110 active:scale-95">
                   <Upload className="w-4 h-4" />
                   <input type="file" className="hidden" accept="image/*" onChange={handleUploadAvatar} />
                 </label>
               </div>
 
-              <div className="flex flex-col gap-1">
+              <div className="space-y-3">
                 <div className="flex items-center gap-3">
-                   <div className="w-4 h-4 bg-black border-2 border-white animate-pulse" />
-                   <span className="mono-type text-[10px] font-black uppercase bg-black text-white px-2 py-1">Node Identity // ID_{bot.id.slice(0, 8)}</span>
+                   <div className="w-2 h-2 bg-[var(--brand)] animate-pulse" />
+                   <span className="mono-type text-[9px] font-black uppercase text-[var(--brand)] tracking-[0.5em] italic">Neural Node ID // {bot.id.slice(0, 12)}</span>
                 </div>
                 <input 
-                   className="display-type text-4xl lg:text-5xl font-black uppercase tracking-tighter leading-none bg-transparent border-none outline-none focus:bg-white/5 w-full transition-colors cursor-text text-white"
+                   className="display-type text-4xl lg:text-5xl font-black uppercase tracking-tighter leading-none bg-transparent border-none outline-none focus:bg-white/5 w-full transition-all cursor-text text-white italic hover:not-italic"
                    defaultValue={bot.name}
                    onBlur={(e) => setDoc(doc(db, "users", auth.currentUser!.uid, "bots", bot.id), { name: e.target.value, updatedAt: serverTimestamp() }, { merge: true })}
                 />
               </div>
             </div>
-            <button onClick={onClose} className="p-3 bg-black text-white hover:bg-white hover:text-black transition-all border-4 border-black brutal-shadow hover:scale-110 active:scale-95 duration-200">
-              <X className="w-8 h-8" />
+            <button onClick={onClose} className="w-16 h-16 border-2 border-white/10 text-white hover:bg-white hover:text-black transition-all flex items-center justify-center group relative overflow-hidden">
+              <X className="w-7 h-7 relative z-10 group-hover:rotate-90 transition-transform duration-500" />
+              <div className="absolute inset-0 bg-white translate-y-full group-hover:translate-y-0 transition-transform duration-500" />
             </button>
           </motion.div>
 
@@ -425,84 +483,44 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
             </div>
           </motion.div>
 
-          <motion.div variants={sectionVariants} className="grid grid-cols-2 gap-4 mb-12">
+          <motion.div variants={sectionVariants} className="grid grid-cols-3 gap-px bg-white/10 border border-white/10 mb-16 overflow-hidden">
             {platformInfo?.stats && Object.entries(platformInfo.stats).map(([k, v]) => (
-              <div key={k} className="bg-black text-white p-4 brutal-border brutal-shadow-red hover:translate-y-1 transition-transform cursor-default">
-                <span className="block mono-type text-[9px] uppercase opacity-60">{k}</span>
-                <span className="text-4xl font-sans font-black tracking-tighter hover:text-[#D4FF00] transition-colors">{String(v)}</span>
+              <div key={k} className="bg-[#050505] p-8 group hover:bg-[#0A0A0A] transition-colors relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-2 opacity-5 scale-150 rotate-12 group-hover:rotate-45 transition-transform duration-700">
+                  <ActivityIcon className="w-16 h-16" />
+                </div>
+                <span className="block mono-type text-[9px] font-black uppercase text-white/30 tracking-[0.3em] mb-4 group-hover:text-[var(--brand)] transition-colors">{k}</span>
+                <span className="display-type text-xl font-black italic text-white tracking-tighter group-hover:not-italic transition-all duration-500">{String(v)}</span>
               </div>
             ))}
           </motion.div>
 
-          {/* Specialized Trading Block */}
-          {['kalshi', 'polymarket', 'alpaca', 'coinbase'].includes(bot.type) && (
-            <motion.div variants={sectionVariants} className="mb-12 p-6 bg-[#D4FF00] border-[4px] border-black brutal-shadow text-black">
-               <div className="flex items-center justify-between mb-4">
-                  <h4 className="font-sans font-black uppercase text-xl flex items-center gap-2">
-                    <TrendingUp className="w-6 h-6" />
-                    Live Market Feed
-                  </h4>
-                  <div className="flex items-center gap-2">
-                     <div className="w-2 h-2 bg-black animate-ping" />
-                     <span className="mono-type text-[8px] font-black uppercase">Real-Time Data Active</span>
-                  </div>
-               </div>
-               <div className="grid grid-cols-3 gap-2">
-                  <div className="bg-black/5 p-3 border border-black/20">
-                     <span className="block text-[8px] font-black uppercase opacity-60">Volatility</span>
-                     <span className="font-mono text-sm font-black">HIGH (2.4x)</span>
-                  </div>
-                  <div className="bg-black/5 p-3 border border-black/20">
-                     <span className="block text-[8px] font-black uppercase opacity-60">Spread</span>
-                     <span className="font-mono text-sm font-black">0.02%</span>
-                  </div>
-                  <div className="bg-black/5 p-3 border border-black/20">
-                     <span className="block text-[8px] font-black uppercase opacity-60">Liquidity</span>
-                     <span className="font-mono text-sm font-black">DEEP</span>
-                  </div>
-               </div>
-               <div className="mt-6 pt-4 border-t border-black/10 flex gap-4">
-                  <button 
-                    onClick={() => handleSendCommand("SIMULATE_SIGNAL: MARKET_SPIKE")}
-                    className="flex-1 bg-black text-[#D4FF00] px-4 py-2 font-black uppercase text-[10px] hover:bg-white hover:text-black transition-all brutal-shadow-mini"
-                  >
-                    Inject Signal: Spike
-                  </button>
-                  <button 
-                    onClick={() => handleSendCommand("SIMULATE_SIGNAL: SENTIMENT_SHIFT")}
-                    className="flex-1 bg-black text-[#D4FF00] px-4 py-2 font-black uppercase text-[10px] hover:bg-white hover:text-black transition-all brutal-shadow-mini"
-                  >
-                    Inject Signal: Shift
-                  </button>
-               </div>
-               <p className="mt-4 text-[9px] font-bold uppercase leading-tight italic opacity-70">
-                 System is currently analyzing event shards and technical indicators for high-confidence entries aligned with your protocol.
-               </p>
-            </motion.div>
-          )}
-
-          <motion.section variants={sectionVariants} className="space-y-6 mb-12 bg-black/5 p-8 border-[4px] border-black brutal-shadow">
-             <div className="flex items-center justify-between border-b-[4px] border-black pb-2 mb-6">
-                <h3 className="font-sans text-3xl font-black uppercase flex items-center gap-3">
-                   <Settings className="w-8 h-8" /> 
-                   Core Configuration
+          <motion.section variants={sectionVariants} className="space-y-10 mb-16 bg-[#050505] p-12 border-2 border-white/5 relative overflow-hidden group">
+             <div className="absolute top-0 right-0 p-8 opacity-5 -rotate-12 scale-150 group-hover:rotate-0 transition-transform duration-1000">
+               <Settings className="w-48 h-48" />
+             </div>
+             
+             <div className="flex items-center justify-between border-b-2 border-white/10 pb-8 relative z-10">
+                <h3 className="display-type text-2xl font-black uppercase flex items-center gap-6 italic">
+                   <Settings className="w-10 h-10 text-[var(--brand)]" /> 
+                   Grid Parameters
                 </h3>
              </div>
              
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="space-y-4">
-                   <div className="space-y-1">
-                      <label className="mono-type text-[10px] font-black uppercase opacity-60">Unit Identity</label>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-12 relative z-10">
+                <div className="space-y-8">
+                   <div className="space-y-3">
+                      <label className="mono-type text-[10px] font-black uppercase text-white/30 tracking-[0.4em]">Node Nomenclature</label>
                       <input 
-                        className="w-full bg-white border-[3px] border-black p-3 font-mono font-bold text-sm brutal-shadow focus:translate-x-1 focus:-translate-y-1 transition-all outline-none"
+                        className="w-full bg-black border-2 border-white/10 p-5 font-display font-black uppercase text-xl focus:border-white focus:bg-white focus:text-black transition-all outline-none italic"
                         defaultValue={bot.name}
                         onBlur={(e) => setDoc(doc(db, "users", auth.currentUser!.uid, "bots", bot.id), { name: e.target.value, updatedAt: serverTimestamp() }, { merge: true })}
                       />
                    </div>
 
-                   <div className="space-y-1">
-                      <label className="mono-type text-[10px] font-black uppercase opacity-60">Sync Frequency (Seconds)</label>
-                      <div className="flex items-center gap-4">
+                   <div className="space-y-4">
+                      <label className="mono-type text-[10px] font-black uppercase text-white/30 tracking-[0.4em]">Neural Sync Interval</label>
+                      <div className="flex items-center gap-8 bg-black p-6 border-2 border-white/5 group/slider">
                          <input 
                            type="range"
                            min="10"
@@ -510,45 +528,45 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
                            step="10"
                            defaultValue={bot.config?.refreshInterval || 30}
                            onChange={(e) => setDoc(doc(db, "users", auth.currentUser!.uid, "bots", bot.id), { config: { ...bot.config, refreshInterval: parseInt(e.target.value) }, updatedAt: serverTimestamp() }, { merge: true })}
-                           className="flex-grow h-2 bg-black/20 appearance-none cursor-pointer accent-black"
+                           className="flex-grow h-[2px] bg-white/10 appearance-none cursor-pointer accent-[var(--brand)]"
                          />
-                         <span className="mono-type font-black text-sm w-12 text-right">{bot.config?.refreshInterval || 30}s</span>
+                         <span className="display-type font-black text-2xl text-[var(--brand)] w-16 text-right tabular-nums">{bot.config?.refreshInterval || 30}s</span>
                       </div>
                    </div>
                 </div>
 
-                <div className="space-y-4">
-                   <div className="flex flex-col gap-3">
-                      <label className="mono-type text-[10px] font-black uppercase opacity-60">Deployment Protocol</label>
+                <div className="space-y-4 flex flex-col justify-end">
+                   <div className="flex flex-col gap-4">
+                      <label className="mono-type text-[10px] font-black uppercase text-white/30 tracking-[0.4em]">Autonomy Protocol</label>
                       <button 
                         onClick={() => setDoc(doc(db, "users", auth.currentUser!.uid, "bots", bot.id), { 
                            autonomous: !bot.autonomous,
                            updatedAt: serverTimestamp() 
                         }, { merge: true })}
                         className={cn(
-                          "w-full p-4 border-[4px] flex items-center justify-between transition-all brutal-shadow",
+                          "w-full h-24 border-2 flex items-center justify-between px-8 text-left transition-all duration-500",
                           bot.autonomous 
-                            ? "bg-black text-[#D4FF00] border-black" 
-                            : "bg-white text-black/40 border-black/10"
+                            ? "bg-white text-black border-white italic" 
+                            : "bg-transparent text-white/20 border-white/10"
                         )}
                       >
-                         <div className="flex items-center gap-3">
-                            <Cpu className={cn("w-6 h-6", bot.autonomous && "animate-pulse")} />
-                            <span className="font-sans font-black uppercase text-sm">Autonomous Mode</span>
+                         <div className="flex items-center gap-4">
+                            <Cpu className={cn("w-8 h-8", bot.autonomous && "animate-pulse")} />
+                            <div className="flex flex-col">
+                               <span className="display-type font-black uppercase text-2xl">Autonomous</span>
+                               <span className="mono-type text-[9px] font-black uppercase tracking-widest opacity-60">Status: {bot.autonomous ? 'ACTIVE' : 'STANDBY'}</span>
+                            </div>
                          </div>
                          <div className={cn(
-                            "w-12 h-6 border-2 border-current relative transition-all",
-                            bot.autonomous ? "bg-[#D4FF00]" : "bg-black/5"
+                            "w-12 h-6 border-2 relative transition-all",
+                            bot.autonomous ? "border-black bg-black" : "border-white/20 bg-transparent"
                          )}>
                             <motion.div 
                                animate={{ x: bot.autonomous ? 24 : 0 }}
-                               className={cn("absolute top-0.5 left-0.5 w-4 h-4", bot.autonomous ? "bg-black" : "bg-black/20")}
+                               className={cn("absolute top-0.5 left-0.5 w-4 h-4", bot.autonomous ? "bg-white" : "bg-white/20")}
                             />
                          </div>
                       </button>
-                      <p className="text-[9px] font-bold opacity-40 uppercase leading-tight">
-                         Enable for independent decision making and mission execution without manual trigger.
-                      </p>
                    </div>
                 </div>
              </div>
@@ -556,13 +574,13 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
 
           <div className="space-y-12">
              <motion.section variants={sectionVariants} className="space-y-6">
-                <div className="flex items-center justify-between border-b-[4px] border-black pb-2">
-                  <h3 className="font-sans text-3xl font-black uppercase flex items-center gap-3"><Trophy className="w-8 h-8" />Objective Milestones</h3>
+                <div className="flex items-center justify-between border-b-[4px] border-white/10 pb-2">
+                  <h3 className="font-sans text-xl font-black uppercase flex items-center gap-3"><Trophy className="w-8 h-8 text-[var(--brand)]" />Objective Milestones</h3>
                 </div>
                 <div className="space-y-3">
                   {milestones.length === 0 ? (
-                    <div className="bg-black/5 p-8 border-2 border-dashed border-black/20 text-center rounded-sm">
-                      <p className="mono-type text-[10px] uppercase font-bold opacity-40 italic">Waiting for bot to satisfy its first objective...</p>
+                    <div className="bg-white/5 p-8 border-2 border-dashed border-white/10 text-center rounded-sm">
+                      <p className="mono-type text-[10px] uppercase font-bold opacity-40 italic text-white/50">Waiting for bot to satisfy its first objective...</p>
                     </div>
                   ) : (
                     milestones.map((m, i) => (
@@ -580,9 +598,9 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
                 </div>
              </motion.section>
 
-             <motion.section variants={sectionVariants} className="space-y-6">
-                <div className="flex items-center justify-between border-b-[4px] border-black pb-2">
-                  <h3 className="font-sans text-3xl font-black uppercase flex items-center gap-3"><Brain className="w-8 h-8" />Bot Memory</h3>
+              <motion.section variants={sectionVariants} className="space-y-6">
+                <div className="flex items-center justify-between border-b-[4px] border-white/10 pb-2">
+                  <h3 className="font-sans text-xl font-black uppercase flex items-center gap-3"><Brain className="w-8 h-8 text-[var(--brand)]" />Bot Memory</h3>
                   <button 
                     onClick={async () => {
                       if (confirm("Reset bot memory? This cannot be undone.")) {
@@ -616,46 +634,91 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
                 </div>
              </motion.section>
 
-             <motion.section variants={sectionVariants} className="space-y-6 text-black bg-white p-8 border-[4px] border-black brutal-shadow">
+             <motion.section 
+               variants={sectionVariants} 
+               className="space-y-8 text-white bg-[#050505] p-10 border-[4px] border-white/10 group"
+               onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+               onDrop={handleUploadFile}
+             >
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-sans text-3xl font-black uppercase flex items-center gap-3"><FileText className="w-8 h-8" />Files & Docs</h3>
-                  <label className="cursor-pointer bg-black text-white p-2 border-2 border-black hover:bg-white hover:text-black transition-all">
-                    <Upload className="w-5 h-5" />
+                  <div className="space-y-1">
+                    <h3 className="font-sans text-2xl font-black uppercase flex items-center gap-4 italic">
+                      <Database className="w-10 h-10 text-[var(--brand)]" />
+                      Neural Knowledge Base
+                    </h3>
+                    <p className="mono-type text-[9px] font-black uppercase opacity-40 italic tracking-widest pl-14">Sector Context & Tactical Documents</p>
+                  </div>
+                  <label className={cn(
+                    "cursor-pointer bg-white text-black p-4 border-2 border-white hover:bg-[var(--brand)] hover:border-[var(--brand)] transition-all flex items-center justify-center brutal-shadow hover:translate-x-1 hover:-translate-y-1",
+                    isUploading && "animate-pulse opacity-50 pointer-events-none"
+                  )}>
+                    {isUploading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Upload className="w-6 h-6" />}
                     <input type="file" className="hidden" onChange={handleUploadFile} disabled={isUploading} />
                   </label>
                 </div>
-                <div className="space-y-3">
+
+                <div className="space-y-4">
                   {files.length === 0 ? (
-                    <div className="text-[10px] font-mono opacity-30 uppercase text-center py-6">No files uploaded.</div>
+                    <div className="border-[3px] border-dashed border-white/10 p-12 text-center bg-white/[0.02]">
+                       <div className="w-12 h-12 border-2 border-white/10 mx-auto mb-4 flex items-center justify-center opacity-20">
+                          <Plus className="w-6 h-6" />
+                       </div>
+                       <p className="mono-type text-[10px] uppercase font-black opacity-30 italic tracking-[0.2em]">Drop tactical files here for neural ingestion</p>
+                    </div>
                   ) : (
-                    files.map(f => (
-                      <div key={f.id} className="flex items-center justify-between border-b border-black/10 py-3 group">
-                        <div className="flex items-center gap-3">
-                           <FileText className="w-4 h-4" />
-                           <div>
-                             <span className="block text-[11px] font-black truncate max-w-[200px]">{f.fileName}</span>
-                             <span className="block text-[9px] italic opacity-60">{(f.fileSize / 1024).toFixed(1)} KB</span>
-                           </div>
-                        </div>
-                        <button onClick={() => handleDeleteFile(f.id)} className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-600 transition-all">
-                           <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))
+                    <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar-black">
+                      {files.map(f => (
+                        <motion.div 
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          key={f.id} 
+                          className="p-6 bg-white border-[3px] border-black brutal-shadow hover:translate-x-1 hover:-translate-y-1 transition-all group/file relative overflow-hidden"
+                        >
+                          <div className="absolute top-0 right-0 p-2 opacity-5 scale-150 rotate-12 group-hover/file:rotate-0 transition-transform">
+                             <FileText className="w-12 h-12" />
+                          </div>
+                          <div className="flex items-start justify-between relative z-10 gap-6">
+                            <div className="flex gap-4 items-start flex-1 min-w-0">
+                               <div className="w-10 h-10 bg-black text-white flex items-center justify-center shrink-0 border-2 border-black">
+                                  <FileText className="w-5 h-5" />
+                               </div>
+                               <div className="space-y-2 flex-1 min-w-0">
+                                 <div className="flex items-center gap-3">
+                                   <span className="font-display font-black uppercase text-sm truncate">{f.fileName}</span>
+                                   <span className="mono-type text-[8px] font-black uppercase bg-black text-white px-2 py-0.5 italic">{(f.fileSize / 1024).toFixed(1)} KB</span>
+                                 </div>
+                                 <div className="bg-black/5 p-3 border-l-4 border-[var(--brand)]">
+                                    <p className="mono-type text-[11px] font-bold text-black/70 leading-relaxed italic line-clamp-3">
+                                      {f.contentSummary || "Analyzing file contents..."}
+                                    </p>
+                                 </div>
+                               </div>
+                            </div>
+                            <button 
+                              onClick={() => handleDeleteFile(f.id)} 
+                              className="w-10 h-10 bg-black/5 hover:bg-red-600 hover:text-white border-2 border-black flex items-center justify-center transition-all brutal-shadow shrink-0"
+                              title="Purge context"
+                            >
+                               <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
                   )}
                 </div>
              </motion.section>
 
             <motion.section variants={sectionVariants} className="space-y-6">
-              <h3 className="font-sans text-3xl font-black uppercase border-b-[4px] border-black pb-2 flex items-center gap-2">
-                <ShieldAlert className="w-8 h-8" /> 
+              <h3 className="font-sans text-xl font-black uppercase border-b-[4px] border-white/10 pb-2 flex items-center gap-2">
+                <ShieldAlert className="w-8 h-8 text-[var(--brand)]" /> 
                 Protocol Config
               </h3>
               
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                  {/* Responsibilities */}
                  <div className="space-y-4">
-                    <label className="mono-type text-[10px] font-black uppercase text-[#D4FF00] border-l-4 border-[#D4FF00] pl-2 block">Operational Scopes</label>
+                    <label className="mono-type text-[10px] font-black uppercase text-[var(--brand)] border-l-4 border-[var(--brand)] pl-2 block">Operational Scopes</label>
                     <div className="space-y-2">
                        {botDef?.responsibilities?.map(resp => (
                          <button 
@@ -683,7 +746,7 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
 
                  {/* Parameters */}
                  <div className="space-y-4">
-                    <label className="mono-type text-[10px] font-black uppercase text-[#D4FF00] border-l-4 border-[#D4FF00] pl-2 block">Fine-Tune Parameters</label>
+                    <label className="mono-type text-[10px] font-black uppercase text-[var(--brand)] border-l-4 border-[var(--brand)] pl-2 block">Fine-Tune Parameters</label>
                     <div className="space-y-3 bg-white/5 p-6 border-[3px] border-white/10 brutal-shadow">
                        {botDef?.parameters?.map(param => {
                          const currentVal = parameters.find(p => p.key === param.id)?.value || param.defaultValue;
@@ -737,9 +800,9 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
                     <button 
                       onClick={handleSaveConfig}
                       disabled={isSaving}
-                      className="w-full bg-[var(--brand)] text-black border-[4px] border-black p-3 font-sans text-xs font-black uppercase brutal-shadow hover:translate-x-1 hover:-translate-y-1 transition-all disabled:opacity-50"
+                      className="w-full h-20 bg-[var(--brand)] text-black border-2 border-[var(--brand)] font-display font-black uppercase text-lg hover:bg-white hover:border-white transition-all duration-500 italic hover:not-italic"
                     >
-                      {isSaving ? "Syncing..." : "Commit Parameter Shifts"}
+                      {isSaving ? "Neural Path Synced..." : "Commit Parameter Shifts"}
                     </button>
                     <p className="text-[8px] opacity-40 font-mono text-center">Changes are synced to the active agent cluster immediately.</p>
                  </div>
@@ -747,11 +810,13 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
             </motion.section>
 
             <motion.section variants={sectionVariants} className="space-y-6">
-              <h3 className="font-sans text-3xl font-black uppercase border-b-[4px] border-black pb-2">Command Directives</h3>
+              <h3 className="font-sans text-xl font-black uppercase border-b-[4px] border-white/10 pb-2 flex items-center gap-2">
+                <Terminal className="w-8 h-8 text-[var(--brand)]" /> Command Directives
+              </h3>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <label className="mono-type text-[10px] font-black uppercase text-[#D4FF00]">Strategic Schedule</label>
+                  <label className="mono-type text-[10px] font-black uppercase text-[var(--brand)]">Strategic Schedule</label>
                   <input 
                     className="w-full bg-black text-white border-[4px] border-black p-3 font-mono font-bold text-xs brutal-shadow outline-none"
                     placeholder="e.g. 24/7, Mon-Fri 9-5..."
@@ -760,7 +825,7 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="mono-type text-[10px] font-black uppercase text-[#D4FF00]">Global Goal Override</label>
+                  <label className="mono-type text-[10px] font-black uppercase text-[var(--brand)]">Global Goal Override</label>
                   <input 
                     className="w-full bg-black text-white border-[4px] border-black p-3 font-mono font-bold text-xs brutal-shadow outline-none"
                     placeholder="Override mission objective..."
@@ -771,16 +836,19 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
               </div>
 
               <div className="space-y-4">
-                <label className="mono-type text-[10px] font-black uppercase text-[#D4FF00]">System Template Browser</label>
+                <label className="mono-type text-[10px] font-black uppercase text-[var(--brand)]">System Template Browser</label>
                 <div className="space-y-2">
                   {BEHAVIORAL_TEMPLATES.map((t) => (
                     <button
                       key={t.id}
-                      onClick={() => setDoc(doc(db, "users", auth.currentUser!.uid, "bots", bot.id), { 
-                        config: { ...bot.config, systemDirective: t.prompt }, 
-                        updatedAt: serverTimestamp() 
-                      }, { merge: true })}
-                      className="w-full text-left p-4 bg-white border-2 border-black hover:bg-[#D4FF00] transition-colors group"
+                      onClick={() => {
+                        setDoc(doc(db, "users", auth.currentUser!.uid, "bots", bot.id), { 
+                          config: { ...bot.config, systemDirective: t.prompt }, 
+                          updatedAt: serverTimestamp() 
+                        }, { merge: true });
+                        setSystemDirective(t.prompt);
+                      }}
+                      className="w-full text-left p-4 bg-white border-2 border-black hover:bg-[var(--brand)] transition-colors group"
                     >
                       <div className="font-sans font-black uppercase text-sm">{t.name}</div>
                       <div className="font-mono text-[9px] opacity-70 mt-1">{t.description}</div>
@@ -789,21 +857,32 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <label className="mono-type text-[10px] font-black uppercase">Operation Personality & Behavior Logic</label>
+              <div className="space-y-4">
+                <div className="flex justify-between items-end">
+                  <label className="mono-type text-[10px] font-black uppercase">Operation Personality & Behavior Logic</label>
+                  <button 
+                    onClick={handleSaveDirective}
+                    disabled={isSaving || systemDirective === (bot.config?.systemDirective || "")}
+                    className="px-4 py-2 bg-[var(--brand)] text-black font-black uppercase text-[10px] hover:-translate-y-1 active:translate-y-0 transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isSaving ? "Saving..." : "Save Changes"}
+                  </button>
+                </div>
                 <textarea 
                   rows={4}
-                  className="w-full bg-black text-[#D4FF00] border-[4px] border-black p-4 font-mono text-[11px] font-bold brutal-shadow outline-none focus:ring-2 focus:ring-[#D4FF00] transition-colors"
+                  className="w-full bg-black text-[var(--brand)] border-[4px] border-black p-4 font-mono text-[11px] font-bold brutal-shadow outline-none focus:ring-2 focus:ring-[var(--brand)] transition-colors"
                   placeholder="e.g. Always respond with technical brevity. Prioritize scalability over speed..."
-                  defaultValue={bot.config?.systemDirective || ""}
-                  onBlur={(e) => setDoc(doc(db, "users", auth.currentUser!.uid, "bots", bot.id), { config: { ...bot.config, systemDirective: e.target.value }, updatedAt: serverTimestamp() }, { merge: true })}
+                  value={systemDirective}
+                  onChange={(e) => setSystemDirective(e.target.value)}
                 />
                 <p className="text-[9px] font-black uppercase opacity-60">Inject custom behavioral logic into the elite agent's decision engine.</p>
               </div>
             </motion.section>
 
             <motion.section variants={sectionVariants} className="space-y-6">
-              <h3 className="font-sans text-3xl font-black uppercase border-b-[4px] border-black pb-2">Bot Settings</h3>
+              <h3 className="font-sans text-xl font-black uppercase border-b-[4px] border-white/10 pb-2 flex items-center gap-2">
+                <Settings className="w-8 h-8 text-[var(--brand)]" /> Bot Settings
+              </h3>
               <div className="grid grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <label className="mono-type text-[10px] font-black uppercase">Bot Strategy</label>
@@ -834,20 +913,20 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
             </motion.section>
 
             <motion.section variants={sectionVariants} className="space-y-6">
-              <div className="flex items-center justify-between border-b-[4px] border-black pb-2">
-                <h3 className="font-sans text-3xl font-black uppercase flex items-center gap-3"><Zap className="w-8 h-8" />Auto-Reply</h3>
+              <div className="flex items-center justify-between border-b-[4px] border-white/10 pb-2">
+                <h3 className="font-sans text-xl font-black uppercase flex items-center gap-3"><Zap className="w-8 h-8 text-[var(--brand)]" />Auto-Reply</h3>
                 <div className="flex items-center gap-3">
                   <span className="mono-type text-[10px] font-black uppercase">{bot.config?.autoResponseEnabled ? 'ENABLED' : 'DISABLED'}</span>
                   <button 
                     onClick={() => setDoc(doc(db, "users", auth.currentUser!.uid, "bots", bot.id), { config: { ...bot.config, autoResponseEnabled: !bot.config?.autoResponseEnabled }, updatedAt: serverTimestamp() }, { merge: true })}
                     className={cn(
-                      "w-12 h-6 border-2 border-black relative transition-all brutal-shadow",
-                      bot.config?.autoResponseEnabled ? "bg-black" : "bg-white"
+                      "w-12 h-6 border-2 border-white relative transition-all brutal-shadow",
+                      bot.config?.autoResponseEnabled ? "bg-white" : "bg-black"
                     )}
                   >
                     <div className={cn(
                       "absolute top-0.5 w-4 h-4 transition-all",
-                      bot.config?.autoResponseEnabled ? "right-1 bg-white" : "left-1 bg-black"
+                      bot.config?.autoResponseEnabled ? "right-1 bg-black" : "left-1 bg-white"
                     )} />
                   </button>
                 </div>
@@ -879,10 +958,10 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
             </motion.section>
 
              <motion.section variants={sectionVariants} className="space-y-6">
-                <div className="flex items-center justify-between border-b-[4px] border-black pb-4">
+                <div className="flex items-center justify-between border-b-[4px] border-white/10 pb-4">
                   <div className="flex flex-col gap-1">
-                    <h3 className="font-sans text-3xl font-black uppercase flex items-center gap-3">
-                      <Zap className="w-8 h-8 text-[#D4FF00]" />
+                    <h3 className="font-sans text-xl font-black uppercase flex items-center gap-3">
+                      <Zap className="w-8 h-8 text-[var(--brand)]" />
                       Automation Pipeline
                     </h3>
                     <p className="mono-type text-[9px] font-black uppercase opacity-40">Define conditional trigger-action sequences for deployment.</p>
@@ -892,7 +971,7 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
                       onClick={handleSuggestWorkflows}
                       disabled={isSuggesting}
                       className={cn(
-                        "flex items-center gap-2 px-4 py-2 bg-[#D4FF00] text-black border-2 border-black font-black uppercase text-[10px] brutal-shadow-mini hover:-translate-y-1 transition-all disabled:opacity-50",
+                        "flex items-center gap-2 px-4 py-2 bg-[var(--brand)] text-black border-2 border-black font-black uppercase text-[10px] brutal-shadow-mini hover:-translate-y-1 transition-all disabled:opacity-50",
                         isSuggesting && "animate-pulse"
                       )}
                     >
@@ -913,10 +992,10 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
                   <div className="mb-8">
                      <button 
                         onClick={handleSuggestWorkflows}
-                        className="w-full py-12 border-4 border-dashed border-black/20 bg-black/5 hover:bg-[#D4FF00]/10 hover:border-[#D4FF00]/40 transition-all flex flex-col items-center justify-center gap-4 group"
+                        className="w-full py-12 border-4 border-dashed border-black/20 bg-black/5 hover:bg-[var(--brand)]/10 hover:border-[var(--brand)]/40 transition-all flex flex-col items-center justify-center gap-4 group"
                      >
-                        <div className="p-4 bg-black brutal-shadow-mini group-hover:bg-[#D4FF00] transition-colors">
-                           <Sparkles className="w-8 h-8 text-[#D4FF00] group-hover:text-black" />
+                        <div className="p-4 bg-black brutal-shadow-mini group-hover:bg-[var(--brand)] transition-colors">
+                           <Sparkles className="w-8 h-8 text-[var(--brand)] group-hover:text-black" />
                         </div>
                         <div className="text-center">
                            <span className="block font-sans font-black uppercase text-lg">Initialize with AI Intelligence</span>
@@ -931,87 +1010,136 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
                     <div className="absolute left-6 top-4 bottom-4 w-1 bg-black/10 -z-10" />
                   )}
                   
-                  {workflows.length === 0 ? (
-                    <div className="bg-black/5 p-12 border-2 border-dashed border-black/20 text-center group hover:bg-[#D4FF00]/5 transition-colors cursor-pointer" onClick={addWorkflow}>
-                       <Zap className="w-12 h-12 mx-auto mb-4 opacity-10 group-hover:opacity-100 group-hover:text-[#D4FF00] transition-all" />
+                  {workflows.length === 0 && workflowSuggestions.length === 0 ? (
+                    <div className="bg-black/5 p-12 border-2 border-dashed border-black/20 text-center group hover:bg-[var(--brand)]/5 transition-colors cursor-pointer" onClick={addWorkflow}>
+                       <Zap className="w-12 h-12 mx-auto mb-4 opacity-10 group-hover:opacity-100 group-hover:text-[var(--brand)] transition-all" />
                        <p className="mono-type text-[10px] uppercase font-black opacity-30 group-hover:opacity-100 transition-all">Pipeline empty. Initialize first sequence.</p>
                     </div>
                   ) : (
-                    workflows.map((wf, idx) => (
+                    <>
+                      {workflowSuggestions.map((wf, idx) => (
+                        <motion.div 
+                          key={wf.id}
+                          layout
+                          initial={{ opacity: 0, y: -20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="bg-[#101010] border-[4px] border-dashed border-[var(--brand)]/50 brutal-shadow p-6 flex flex-col gap-6 relative group"
+                        >
+                          <div className="absolute top-6 right-6 flex gap-2">
+                             <button 
+                               onClick={() => acceptSuggestion(wf)} 
+                               className="px-4 py-2 bg-[var(--brand)] text-black font-black uppercase text-[10px] hover:bg-white transition-colors"
+                             >
+                               Accept
+                             </button>
+                             <button 
+                               onClick={() => rejectSuggestion(wf.id)} 
+                               className="p-2 border border-white/20 text-white/40 hover:text-white hover:border-white transition-colors"
+                             >
+                               <Trash2 className="w-4 h-4" />
+                             </button>
+                          </div>
+  
+                          <div className="flex items-center gap-6">
+                             <div className="display-type text-2xl font-black italic text-[var(--brand)]">
+                                AI_SUGGESTION
+                             </div>
+                             <div className="h-[1px] flex-grow bg-[var(--brand)]/20" />
+                          </div>
+  
+                          <div className="grid grid-cols-1 xl:grid-cols-2 gap-12 py-4">
+                             <div className="space-y-4 opacity-70">
+                                <label className="mono-type text-[10px] font-black uppercase text-white/30 tracking-[0.4em] italic">Neural Trigger Event</label>
+                                <div className="w-full bg-[#050505] border-2 border-white/10 p-5 font-display font-black uppercase text-base text-[var(--brand)]">
+                                  {wf.trigger || "-- BLANK_SIG --"}
+                                </div>
+                             </div>
+                             <div className="space-y-4 opacity-70">
+                                <label className="mono-type text-[10px] font-black uppercase text-white/30 tracking-[0.4em] italic">Execution Routine</label>
+                                <div className="w-full bg-[#050505] border-2 border-white/10 p-5 font-display font-black uppercase text-base text-[var(--brand)]">
+                                  {wf.action || "-- NULL_OP --"}
+                                </div>
+                             </div>
+                          </div>
+  
+                          <div className="space-y-2 border-t border-[var(--brand)]/20 pt-4">
+                             <label className="mono-type text-[8px] font-black uppercase text-[var(--brand)] opacity-80">Agent Logic Supplement</label>
+                             <div className="w-full bg-white/5 border-2 border-white/10 p-3 text-[10px] font-mono font-bold text-white">
+                                {wf.prompt}
+                             </div>
+                          </div>
+                        </motion.div>
+                      ))}
+                      {workflows.map((wf, idx) => (
                       <motion.div 
                         key={wf.id}
                         layout
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
-                        className="bg-white border-[4px] border-black brutal-shadow p-6 flex flex-col gap-6 relative group"
+                        className="bg-[#0A0A0A] border-[4px] border-white/10 brutal-shadow p-6 flex flex-col gap-6 relative group hover:border-[var(--brand)]/50 transition-colors"
                       >
-                        <div className="absolute top-0 right-0 p-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="absolute top-6 right-6">
                            <button 
                              onClick={() => removeWorkflow(wf.id)} 
-                             className="p-1 text-black hover:text-[#FF2E00] transition-colors"
+                             className="p-3 text-white/20 hover:text-[var(--accent)] transition-all duration-500 border border-white/5 hover:border-[var(--accent)]"
                              title="Purge Sequence"
                            >
                              <Trash2 className="w-4 h-4" />
                            </button>
                         </div>
 
-                        <div className="flex items-center gap-4">
-                           <div className="flex items-center justify-center w-8 h-8 rounded-full bg-black text-white text-[10px] font-black shrink-0">
-                              {idx + 1}
+                        <div className="flex items-center gap-6">
+                           <div className="display-type text-2xl font-black italic text-white/10 group-hover:text-[var(--brand)] transition-colors">
+                              {String(idx + 1).padStart(2, '0')}
                            </div>
-                           <div className="h-0.5 flex-grow bg-black/5" />
+                           <div className="h-[1px] flex-grow bg-white/5" />
                            <div className={cn(
-                             "px-2 py-0.5 text-[8px] font-black uppercase text-white transition-colors",
-                             wf.active ? "bg-[#D4FF00] text-black" : "bg-black/20"
+                             "px-5 py-2 text-[10px] font-black uppercase italic border transition-all duration-500",
+                             wf.active ? "bg-[var(--brand)] border-[var(--brand)] text-black" : "bg-transparent border-white/10 text-white/20"
                            )}>
-                              {wf.active ? "Pipeline Active" : "Standby"}
+                              {wf.active ? "ACTIVE_PATH" : "OFFLINE"}
                            </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
-                          <div className="space-y-3">
-                             <div className="flex items-center gap-2">
-                                <div className="w-2 h-2 rounded-full bg-[#D4FF00]" />
-                                 <label className="mono-type text-[9px] font-black uppercase opacity-60 italic">Strategic Signal Trigger:</label>
-                             </div>
-                             <select 
-                               value={wf.trigger}
-                               onChange={(e) => updateWorkflow(wf.id, "trigger", e.target.value)}
-                               className="w-full bg-black text-white border-[3px] border-black p-3 font-mono font-bold text-[11px] focus:bg-white focus:text-black transition-all outline-none"
-                             >
-                               <option value="">-- NO SIGNAL SELECTED --</option>
-                               {PLATFORM_WORKFLOWS[bot.type]?.triggers?.map(t => <option key={t} value={t}>{t}</option>)}
-                             </select>
-                          </div>
+                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-12 py-4">
+                           <div className="space-y-4">
+                              <label className="mono-type text-[10px] font-black uppercase text-white/30 tracking-[0.4em] italic">Neural Trigger Event</label>
+                              <select 
+                                value={wf.trigger}
+                                onChange={(e) => updateWorkflow(wf.id, "trigger", e.target.value)}
+                                className="w-full bg-[#050505] border-2 border-white/10 p-5 font-display font-black uppercase text-base text-white focus:border-[var(--brand)] focus:text-white transition-all outline-none appearance-none cursor-pointer"
+                              >
+                                <option value="">-- BLANK_SIG --</option>
+                                {PLATFORM_WORKFLOWS[bot.type]?.triggers?.map(t => <option key={t} value={t}>{t}</option>)}
+                              </select>
+                           </div>
 
-                          <div className="space-y-3">
-                             <div className="flex items-center gap-2">
-                                <div className="w-2 h-2 rounded-full bg-black animate-pulse" />
-                                <label className="mono-type text-[9px] font-black uppercase opacity-60 italic">Deploy Response:</label>
-                             </div>
-                             <select 
-                               value={wf.action}
-                               onChange={(e) => updateWorkflow(wf.id, "action", e.target.value)}
-                               className="w-full bg-[#00D1FF] text-black border-[3px] border-black p-3 font-mono font-bold text-[11px] focus:bg-white transition-all outline-none"
-                             >
-                               <option value="">-- NO ACTION DEFINED --</option>
-                               {PLATFORM_WORKFLOWS[bot.type]?.actions?.map(a => <option key={a} value={a}>{a}</option>)}
-                             </select>
-                          </div>
+                           <div className="space-y-4">
+                              <label className="mono-type text-[10px] font-black uppercase text-white/30 tracking-[0.4em] italic">Execution Protocol</label>
+                              <select 
+                                value={wf.action}
+                                onChange={(e) => updateWorkflow(wf.id, "action", e.target.value)}
+                                className="w-full bg-[#050505] border-2 border-white/10 p-5 font-display font-black uppercase text-base text-white focus:border-[var(--brand)] focus:text-white transition-all outline-none appearance-none cursor-pointer"
+                              >
+                                <option value="">-- NULL_OP --</option>
+                                {PLATFORM_WORKFLOWS[bot.type]?.actions?.map(a => <option key={a} value={a}>{a}</option>)}
+                              </select>
+                           </div>
                         </div>
 
-                        <div className="space-y-2 border-t border-black/5 pt-4">
+                        <div className="space-y-2 border-t border-white/5 pt-4">
                            <label className="mono-type text-[8px] font-black uppercase opacity-40">Agent Logic Supplement</label>
                            <textarea 
                              placeholder="Inject specific contextual parameters for this automation branch..."
                              rows={2}
                              value={wf.prompt}
                              onChange={(e) => updateWorkflow(wf.id, "prompt", e.target.value)}
-                             className="w-full bg-black/5 border-2 border-black/10 p-3 text-[10px] font-mono font-bold focus:bg-white focus:border-black focus:outline-none transition-all placeholder:text-black/20"
+                             className="w-full bg-white/5 border-2 border-white/10 p-3 text-[10px] font-mono font-bold text-white focus:border-white focus:outline-none transition-all placeholder:text-white/20"
                            />
                         </div>
                       </motion.div>
-                    ))
+                    ))}
+                    </>
                   )}
                 </div>
               </motion.section>
@@ -1040,7 +1168,7 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
               </motion.div>
 
               <motion.div variants={sectionVariants} className="space-y-4">
-                 <div className="flex items-center justify-between border-b-[4px] border-black pb-2">
+                 <div className="flex items-center justify-between border-b-[4px] border-white/10 pb-2">
                     <h3 className="font-sans text-xl font-black uppercase flex items-center gap-2">
                        <Zap className="w-5 h-5 text-[var(--accent)]" />
                        Command Override
@@ -1067,7 +1195,7 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
               </motion.div>
 
               <motion.div variants={sectionVariants} className="space-y-4">
-                 <div className="flex items-center justify-between border-b-[4px] border-black pb-2">
+                 <div className="flex items-center justify-between border-b-[4px] border-white/10 pb-2">
                     <h3 className="font-sans text-xl font-black uppercase flex items-center gap-2">
                        <Trophy className="w-5 h-5 text-yellow-500" />
                        Strategic Milestones
@@ -1091,7 +1219,7 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
               </motion.div>
 
               <motion.div variants={sectionVariants} className="space-y-4">
-                 <div className="flex items-center justify-between border-b-[4px] border-black pb-2">
+                 <div className="flex items-center justify-between border-b-[4px] border-white/10 pb-2">
                     <h3 className="font-sans text-xl font-black uppercase flex items-center gap-2">
                        <Database className="w-5 h-5" />
                        Recent Bot Activity
@@ -1120,7 +1248,7 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
                  </div>
               </motion.div>
               
-              <motion.section variants={sectionVariants} className="pt-10 border-t-4 border-black pb-32">
+              <motion.section variants={sectionVariants} className="pt-10 border-t-4 border-white/10 pb-32">
                  <button 
                    onClick={async () => {
                      if (confirm("Are you sure you want to decommission this bot? All its memory and files will be permanently erased.")) {

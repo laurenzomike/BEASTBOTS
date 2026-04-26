@@ -28,32 +28,26 @@ export const GlobalTerminal: React.FC<GlobalTerminalProps> = ({
     setCommand('');
   };
 
-  // ⚡ Bolt: Memoize filtered activity list to prevent O(N) recalculation on every key stroke or render.
-  // search.toLowerCase is hoisted to prevent redundant allocations inside the loop.
-  const filteredActivities = React.useMemo(() => {
-    const searchLower = search.toLowerCase();
-    return globalActivities
-      .filter(a => filter === 'all' || a.botType === filter)
-      .filter(a => a.text.toLowerCase().includes(searchLower) || a.botType.toLowerCase().includes(searchLower));
-  }, [globalActivities, filter, search]);
+  const filteredActivities = globalActivities
+    .filter(a => filter === 'all' || a.botType === filter)
+    .filter(a => a.text.toLowerCase().includes(search.toLowerCase()) || a.botType.toLowerCase().includes(search.toLowerCase()));
 
-  // ⚡ Bolt: Memoize uniqueBots to prevent O(N) iteration and Set allocations over globalActivities array on each render
-  const uniqueBots = React.useMemo(() => Array.from(new Set(globalActivities.map(a => a.botType))), [globalActivities]);
+  const uniqueBots = Array.from(new Set(globalActivities.map(a => a.botType)));
 
   return (
     <>
       {/* Terminal Toggle Button */}
       {!showTerminal && (
          <motion.button 
-           initial={{ opacity: 0, scale: 0.8, y: 20 }}
-           animate={{ opacity: 1, scale: 1, y: 0 }}
-           transition={{ type: "spring", stiffness: 400, damping: 25 }}
+           initial={{ opacity: 0, x: 20 }}
+           animate={{ opacity: 1, x: 0 }}
+           whileHover={{ scale: 1.1, rotate: 90 }}
            onClick={() => setShowTerminal(true)} 
-           className="fixed bottom-4 right-4 sm:bottom-8 sm:left-8 z-30 p-3 sm:p-4 bg-black border-[4px] border-white text-white hover:bg-[var(--brand)] hover:text-black transition-all brutal-shadow hover:-translate-y-1 hover:scale-105 active:scale-95 duration-200"
+           className="fixed bottom-10 right-10 z-[40] w-16 h-16 bg-[#050505] border-2 border-white/20 text-white flex items-center justify-center hover:border-[var(--brand)] hover:text-[var(--brand)] transition-all duration-500 rounded-full group overflow-hidden"
          >
-            <motion.div animate={{ rotate: [0, -5, 5, -5, 5, 0] }} transition={{ repeat: Infinity, duration: 5, ease: "easeInOut" }}>
-              <Terminal className="w-6 h-6 sm:w-8 sm:h-8" />
-            </motion.div>
+            <div className="absolute inset-0 bg-[var(--brand)]/5 group-hover:bg-[var(--brand)]/10 animate-pulse" />
+            <Terminal className="w-6 h-6 relative z-10" />
+            <div className="absolute top-0 left-0 w-full h-[1px] bg-white/20 animate-[scan_2s_linear_infinite]" />
          </motion.button>
       )}
 
@@ -64,89 +58,90 @@ export const GlobalTerminal: React.FC<GlobalTerminalProps> = ({
             initial={{ y: "100%", opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: "100%", opacity: 0 }}
-            transition={{ type: "spring", damping: 25, stiffness: 250, mass: 0.8 }}
-            className="fixed bottom-0 left-0 right-0 sm:bottom-8 sm:left-8 sm:right-8 lg:left-auto lg:right-8 lg:w-[600px] z-[50]"
+            transition={{ type: "spring", damping: 30, stiffness: 300 }}
+            className="fixed bottom-0 left-0 right-0 sm:bottom-10 sm:right-10 lg:w-[650px] lg:left-auto z-[50]"
           >
-             <div className="bg-[#0A0A0A] border-t-4 sm:border-[4px] border-white brutal-shadow flex flex-col h-[300px] sm:h-[400px]">
-                <div className="p-4 border-b-2 border-white flex flex-col sm:flex-row justify-between items-start sm:items-center bg-black group transition-colors gap-4">
-                   <div className="flex items-center gap-3">
-                     <Terminal className="w-5 h-5 text-[var(--brand)] group-hover:scale-110 transition-transform origin-left" />
-                     <span className="text-[10px] font-black uppercase text-white tracking-widest">Live Activity Log</span>
+             <div className="bg-[#050505] border-2 border-white/10 brutal-shadow-white flex flex-col h-[600px] max-h-[85vh] relative overflow-hidden group">
+                {/* Neural Scan Line */}
+                <div className="absolute top-0 left-0 w-full h-[2px] bg-[var(--brand)]/20 blur-sm animate-[scan_3s_linear_infinite] pointer-events-none z-[60]" />
+                
+                {/* Header */}
+                <div className="p-6 border-b border-white/10 flex items-center justify-between bg-[#0A0A0A] relative z-10">
+                   <div className="flex items-center gap-4">
+                     <div className="w-2 h-2 bg-[var(--brand)] animate-pulse" />
+                     <span className="mono-type text-[10px] font-black uppercase text-white tracking-[0.4em]">Neural Stream // Live</span>
                    </div>
                    
-                   <div className="flex gap-2 flex-wrap items-center">
-                      <input 
-                        type="text"
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        placeholder="SIG_SEARCH..."
-                        className="bg-white/5 border border-white/20 text-[8px] px-2 py-0.5 text-white focus:outline-none focus:border-[var(--brand)] mono-type w-24"
-                      />
-                      <div className="h-4 w-[1px] bg-white/20 mx-1 hidden sm:block" />
+                   <div className="flex items-center gap-4">
+                      <div className="bg-white/5 border border-white/10 p-1 flex">
+                         {(['all', 'error', 'analysis'] as const).map(t => (
+                           <button 
+                             key={t}
+                             onClick={() => setFilter(t === 'all' ? 'all' : t)}
+                             className={cn(
+                               "px-3 py-1 text-[8px] font-black uppercase transition-all duration-300",
+                               (filter === t || (t === 'all' && filter === 'all')) ? "bg-white text-black" : "text-white/20 hover:text-white"
+                             )}
+                           >
+                             {t}
+                           </button>
+                         ))}
+                      </div>
                       <button 
-                        onClick={() => setFilter('all')}
-                        className={`text-[8px] font-black uppercase px-2 py-0.5 border border-white/20 transition-all hover:border-white ${filter === 'all' ? 'bg-[var(--brand)] text-black border-black' : 'text-white'}`}
+                        onClick={() => setShowTerminal(false)} 
+                        className="w-10 h-10 border-2 border-white/10 text-white/40 hover:text-white hover:border-white transition-all duration-300 flex items-center justify-center p-1"
                       >
-                        All
+                        <ChevronUp className="w-5 h-5 rotate-180" />
                       </button>
-                      {uniqueBots.map(bot => (
-                        <button 
-                          key={bot}
-                          onClick={() => setFilter(bot)}
-                          className={`text-[8px] font-black uppercase px-2 py-0.5 border border-white/20 transition-all hover:border-white ${filter === bot ? 'bg-[var(--brand)] text-black border-black' : 'text-white'}`}
-                        >
-                          {bot}
-                        </button>
-                      ))}
                    </div>
-
-                   <button 
-                     onClick={() => setShowTerminal(false)} 
-                     className="absolute top-4 right-4 text-white hover:text-[var(--brand)] hover:scale-125 transition-all p-1"
-                   >
-                     <ChevronUp className="w-5 h-5 rotate-180" />
-                   </button>
                 </div>
-                <div className="flex-grow overflow-y-auto p-4 space-y-4 font-mono text-[10px] custom-scrollbar bg-[#050505]">
+
+                {/* Stream Content */}
+                <div className="flex-grow overflow-y-auto p-8 space-y-8 custom-scrollbar bg-black/40 backdrop-blur-sm relative z-10">
                    {filteredActivities.length === 0 ? (
-                     <div className="text-center opacity-20 py-20 uppercase font-black tracking-[0.2em] text-white animate-pulse">Waiting for network signals...</div>
+                     <div className="h-full flex flex-col items-center justify-center gap-4 opacity-20 py-20 grayscale">
+                        <ActivityIcon className="w-12 h-12 animate-pulse" />
+                        <span className="mono-type text-[10px] font-black uppercase tracking-[1em]">Scanning Network...</span>
+                     </div>
                    ) : (
-                     filteredActivities.map(a => {
+                     filteredActivities.map((a, i) => {
                         const isLive = a.text.includes("[LIVE EXECUTION]");
-                        const cleanText = a.text.replace("[LIVE EXECUTION]", "").trim();
-                        
                         const Icon = a.type === 'error' ? AlertTriangle : a.type === 'analysis' ? Brain : ActivityIcon;
-                        const typeColor = a.type === 'error' ? 'text-[#FF2E00]' : a.type === 'analysis' ? 'text-[#00D1FF]' : 'text-[#D4FF00]';
                         
                         return (
                          <motion.div 
-                           initial={{ opacity: 0, scale: 0.95 }} 
-                           animate={{ opacity: 1, scale: 1 }} 
+                           initial={{ opacity: 0, x: -10 }} 
+                           animate={{ opacity: 1, x: 0 }} 
+                           transition={{ delay: i * 0.02 }}
                            key={a.id} 
-                           className="flex gap-4 border-l-[3px] border-white/5 pl-3 transition-all hover:bg-white/[0.03] py-3 hover:border-l-white group relative"
+                           className="flex gap-6 group/item relative border-l border-white/10 pl-6 py-2 hover:border-white hover:bg-white/5 transition-all duration-500"
                          >
-                            <span className="opacity-20 italic text-[7px] self-start mt-1 text-white tabular-nums">{a.timestamp?.toDate().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
-                            <div className="flex-grow flex gap-4">
-                               <div className={cn("p-2 h-fit border-2 border-white/5 group-hover:border-white/20 transition-all shadow-inner", typeColor)}>
-                                  <Icon className="w-4 h-4" />
-                               </div>
-                               <div className="flex flex-col gap-1.5 min-w-0">
-                                  <div className="flex items-center gap-3 flex-wrap">
-                                    <span className="text-white font-black uppercase tracking-widest text-[9px] bg-white/10 px-2 py-0.5 border border-white/5">
-                                      {a.botType}
-                                    </span>
-                                    <div className={cn("flex items-center gap-1 text-[8px] font-black uppercase", typeColor)}>
-                                       <div className={cn("w-1.5 h-1.5 rounded-full animate-pulse", a.type === 'error' ? 'bg-[#FF2E00]' : a.type === 'analysis' ? 'bg-[#00D1FF]' : 'bg-[#D4FF00]')} />
-                                       {a.type || 'EVENT'}
-                                    </div>
-                                    {isLive && (
-                                       <span className="bg-[#FF2E00] text-white px-2 py-0.5 text-[7px] animate-pulse font-black border border-[#FF2E00] shadow-[0_0_10px_rgba(255,46,0,0.4)]">
-                                          EXECUTION ACTIVE
-                                       </span>
-                                    )}
+                            <span className="mono-type text-[9px] font-black text-white/10 tabular-nums italic self-start pt-1 font-mono group-hover/item:text-white/40 transition-colors">
+                               {a.timestamp?.toDate().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                            </span>
+                            <div className="flex flex-col gap-3 min-w-0">
+                               <div className="flex items-center gap-3">
+                                  <div className={cn(
+                                    "p-2 border transition-all duration-500",
+                                    a.type === 'error' ? 'text-[var(--accent)] border-[var(--accent)]/40 bg-[var(--accent)]/10' : 
+                                    a.type === 'analysis' ? 'text-white border-white/20 bg-white/5' : 
+                                    'text-[var(--brand)] border-[var(--brand)]/40 bg-[var(--brand)]/10'
+                                  )}>
+                                     <Icon className="w-3.5 h-3.5" />
                                   </div>
-                                  <p className="text-white/80 leading-relaxed text-[11px] font-medium selection:bg-[#D4FF00] selection:text-black">{cleanText}</p>
+                                  <span className="mono-type text-[9px] font-black uppercase text-white bg-white/10 px-2 py-0.5 tracking-widest border border-white/10">
+                                    {a.botType}
+                                  </span>
+                                  {isLive && (
+                                     <div className="flex items-center gap-2">
+                                        <div className="w-1.5 h-1.5 bg-[var(--accent)] rounded-full animate-ping" />
+                                        <span className="mono-type text-[8px] font-black text-[var(--accent)] uppercase tracking-wider">Live Op</span>
+                                     </div>
+                                  )}
                                </div>
+                               <p className="mono-type text-[12px] font-bold text-white/60 group-hover/item:text-white leading-relaxed italic transition-colors">
+                                  {a.text.replace("[LIVE EXECUTION]", "").trim()}
+                                </p>
                             </div>
                          </motion.div>
                         );
@@ -154,26 +149,26 @@ export const GlobalTerminal: React.FC<GlobalTerminalProps> = ({
                    )}
                 </div>
 
-                {/* Command Input */}
-                <div className="p-4 border-t-2 border-white bg-black">
-                  <form onSubmit={handleCommandSubmit} className="flex gap-4">
-                    <div className="flex-grow flex items-center bg-white/5 border-2 border-white/20 px-4 focus-within:border-[var(--brand)] transition-colors">
-                       <span className="mono-type text-[10px] text-[var(--brand)] mr-3 font-black tracking-widest hidden sm:inline">FLEET@ROOT &gt;</span>
-                       <input 
-                         type="text"
-                         value={command}
-                         onChange={(e) => setCommand(e.target.value)}
-                         placeholder="Broadcast command to all active agents..."
-                         className="w-full bg-transparent border-none focus:outline-none text-white font-mono text-[11px] py-1 selection:bg-[var(--brand)] selection:text-black"
-                       />
-                    </div>
-                    <button 
-                      type="submit"
-                      className="bg-[var(--brand)] text-black px-6 py-2 border-2 border-black font-black uppercase text-[10px] brutal-shadow hover:-translate-y-1 active:translate-y-0 transition-all font-sans"
-                    >
-                      EXEC
-                    </button>
-                  </form>
+                {/* Command Deck */}
+                <div className="p-8 border-t border-white/10 bg-[#0A0A0A] relative z-10">
+                   <form onSubmit={handleCommandSubmit} className="flex gap-4">
+                     <div className="flex-grow relative">
+                        <input 
+                          type="text"
+                          value={command}
+                          onChange={(e) => setCommand(e.target.value)}
+                          placeholder="INPUT COMMAND >"
+                          className="w-full bg-black border-2 border-white/10 px-6 py-5 mono-type text-[11px] text-white focus:border-white focus:bg-white focus:text-black outline-none transition-all placeholder:text-white/10 italic font-black"
+                        />
+                        <Terminal className="absolute right-6 top-1/2 -translate-y-1/2 w-4 h-4 text-white/10 pointer-events-none group-focus-within:text-black" />
+                     </div>
+                     <button 
+                       type="submit"
+                       className="w-20 bg-white text-black font-display font-black uppercase text-xs hover:bg-[var(--brand)] transition-all duration-300 italic"
+                     >
+                       EXEC
+                     </button>
+                   </form>
                 </div>
              </div>
           </motion.div>

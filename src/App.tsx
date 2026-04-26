@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { auth, db, login, logout, handleFirestoreError } from "./lib/firebase";
 import { onAuthStateChanged, User } from "firebase/auth";
-import { collection, onSnapshot, doc, setDoc, getDocs, addDoc, query, where, serverTimestamp, orderBy, limit, increment, writeBatch } from "firebase/firestore";
+import { collection, onSnapshot, doc, setDoc, getDocs, addDoc, query, where, serverTimestamp, orderBy, limit, increment } from "firebase/firestore";
 import { 
   Key, LogOut, Settings, RefreshCw, Layers, ShieldAlert, Cpu, 
   TrendingUp, Zap, Target, ChevronRight, Terminal, ChevronUp,
@@ -322,7 +322,12 @@ Keep it to 1-2 authoritative sentences.`;
       if (winMatch && winMatch[1]) {
         const achievement = winMatch[1].trim();
         const winRef = collection(db, "users", user!.uid, "bots", bot.id, "milestones");
-        await addDoc(winRef, { title: achievement, createdAt: serverTimestamp() });
+        await addDoc(winRef, { 
+          userId: user!.uid,
+          botId: bot.id,
+          title: achievement, 
+          createdAt: serverTimestamp() 
+        });
         
         // Safety: Atomic increment in Firestore for the total count
         const docRef = doc(db, "users", user!.uid, "bots", bot.id);
@@ -406,12 +411,9 @@ Keep it to 1-2 authoritative sentences.`;
     
     addToast(`Updating ${targets.length} bots to ${status}...`, "info");
     try {
-      const batch = writeBatch(db);
-      targets.forEach(b => {
-        const botRef = doc(db, "users", user.uid, "bots", b.id);
-        batch.set(botRef, { status, updatedAt: serverTimestamp() }, { merge: true });
-      });
-      await batch.commit();
+      await Promise.all(targets.map(b => 
+        setDoc(doc(db, "users", user.uid, "bots", b.id), { status, updatedAt: serverTimestamp() }, { merge: true })
+      ));
       addToast(`Fleet updated.`, "success");
     } catch (e) {
       addToast("Bulk update failed.", "error");
@@ -433,7 +435,7 @@ Keep it to 1-2 authoritative sentences.`;
     const handleOAuthMessage = (event: MessageEvent) => {
       // Validate origin is from AI Studio preview or localhost
       const origin = event.origin;
-      if (!origin.endsWith('.run.app') && !origin.includes('localhost') && !origin.includes('aistudio.google')) {
+      if (!origin.endsWith('.run.app') && !origin.includes('localhost')) {
         return;
       }
       
@@ -554,16 +556,11 @@ Keep it to 1-2 authoritative sentences.`;
 
   const seedBots = async (userId: string) => {
     const botsRef = collection(db, "users", userId, "bots");
-    const existingBotsSnap = await getDocs(botsRef);
-    const existingBotTypes = new Set<string>();
-    existingBotsSnap.forEach((doc) => {
-      existingBotTypes.add(doc.data().type);
-    });
-
     for (const bt of BOT_TYPES) {
       const isTrading = ["kalshi", "polymarket", "alpaca", "coinbase"].includes(bt.id);
       const docRef = doc(botsRef, bt.id);
-      if (!existingBotTypes.has(bt.id)) {
+      const snap = await getDocs(query(botsRef, where("type", "==", bt.id)));
+      if (snap.empty) {
         await setDoc(docRef, {
           userId, name: bt.name, type: bt.id, status: isTrading ? "online" : "auth-required",
           config: { 
@@ -576,27 +573,40 @@ Keep it to 1-2 authoritative sentences.`;
     }
   };
 
-  // ⚡ Bolt: Cache filtered results to prevent O(N) array allocation on every re-render.
-  // We also hoist the searchQuery toLowerCase call outside the filter loop to reduce CPU cycles.
-  const filteredBots = React.useMemo(() => {
-    const searchLower = searchQuery.toLowerCase();
-    return bots.filter(bot => {
-      const matchesSearch = bot.name.toLowerCase().includes(searchLower) ||
-                           bot.type.toLowerCase().includes(searchLower);
-      const matchesStatus = statusFilter === "all" || bot.status === statusFilter;
-      return matchesSearch && matchesStatus;
-    });
-  }, [bots, searchQuery, statusFilter]);
+  const filteredBots = bots.filter(bot => {
+    const matchesSearch = bot.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                         bot.type.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus = statusFilter === "all" || bot.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
 
   if (loading) return (
-    <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center text-[#D4FF00] font-black tracking-tighter">
-       <div className="relative mb-8">
-          <Zap className="w-20 h-20 animate-pulse relative z-10" />
-          <div className="absolute inset-0 bg-[#D4FF00]/20 blur-2xl animate-pulse" />
+    <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center text-[var(--brand)] font-display font-black tracking-tighter">
+       <div className="relative mb-12">
+          <Zap className="w-24 h-24 animate-pulse relative z-10" />
+          <motion.div 
+            animate={{ scale: [1, 1.5, 1], opacity: [0.2, 0.4, 0.2] }}
+            transition={{ duration: 2, repeat: Infinity }}
+            className="absolute inset-0 bg-[var(--brand)] blur-3xl opacity-20" 
+          />
        </div>
-       <div className="flex flex-col items-center">
-          <span className="text-4xl md:text-6xl uppercase leading-none">Initializing</span>
-          <span className="text-white/40 font-mono text-[10px] mt-4 uppercase tracking-[0.4em]">Hardware Protocol Handshake...</span>
+       <div className="flex flex-col items-center space-y-4">
+          <div className="flex items-center gap-4">
+             <div className="h-0.5 w-12 bg-[var(--brand)]" />
+             <span className="text-3xl md:text-5xl uppercase leading-none tracking-tighter italic">Initializing</span>
+             <div className="h-0.5 w-12 bg-[var(--brand)]" />
+          </div>
+          <div className="flex flex-col items-center gap-1">
+             <span className="text-white font-mono text-[10px] uppercase tracking-[0.5em] opacity-40">Protocol Handshake: Active</span>
+             <div className="w-64 h-1 bg-white/5 overflow-hidden mt-2 border border-white/10">
+                <motion.div 
+                  initial={{ width: 0 }}
+                  animate={{ width: "100%" }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                  className="h-full bg-[var(--brand)]"
+                />
+             </div>
+          </div>
        </div>
     </div>
   );
@@ -616,7 +626,7 @@ Keep it to 1-2 authoritative sentences.`;
               exit={{ x: 100, opacity: 0, scale: 0.9, transition: { duration: 0.2 } }}
               className={cn(
                 "p-4 border-[3px] brutal-shadow overflow-hidden relative group",
-                t.type === 'success' ? "bg-[#D4FF00] border-black text-black" : 
+                t.type === 'success' ? "bg-[var(--brand)] border-black text-black" : 
                 t.type === 'error' ? "bg-[#FF2E00] border-black text-white" : 
                 t.type === 'warning' ? "bg-[#00D1FF] border-black text-black" :
                 "bg-white border-black text-black"
@@ -633,7 +643,7 @@ Keep it to 1-2 authoritative sentences.`;
               <div className="flex items-start gap-4">
                  <div className={cn(
                    "p-2 border-2 border-black/10",
-                   t.type === 'success' ? "bg-black text-[#D4FF00]" : "bg-black/20"
+                   t.type === 'success' ? "bg-black text-[var(--brand)]" : "bg-black/20"
                  )}>
                     <Bell className="w-4 h-4" />
                  </div>
@@ -674,7 +684,12 @@ Keep it to 1-2 authoritative sentences.`;
         onPersonaChange={setPersona}
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 min-h-screen">
+      <div className="grid grid-cols-1 lg:grid-cols-12 min-h-screen relative">
+        {/* Background Scanline Overlay */}
+        <div className="fixed inset-0 pointer-events-none z-50 overflow-hidden opacity-30 select-none">
+           <div className="scanline" />
+        </div>
+
         <AppSidebar
           isMobileMenuOpen={isMobileMenuOpen}
           setIsMobileMenuOpen={setIsMobileMenuOpen}
@@ -689,10 +704,12 @@ Keep it to 1-2 authoritative sentences.`;
           setPersona={setPersona}
           fleetIntelligence={fleetIntelligence}
           bots={bots}
-          className="lg:col-span-3 xl:col-span-2"
+          className="lg:col-span-3 xl:col-span-2 border-r-[3px] border-white/10"
         />
 
-        <main className="lg:col-span-9 xl:col-span-10 pb-32 bg-[#121212] overflow-x-hidden relative min-h-screen">
+        <main className="lg:col-span-9 xl:col-span-10 pb-32 bg-[#080808] overflow-x-hidden relative min-h-screen">
+          <div className="absolute inset-0 opacity-[0.03] pointer-events-none" 
+               style={{ backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
           <AnimatePresence mode="wait">
             {currentView === "audit" && (
               <motion.div 
