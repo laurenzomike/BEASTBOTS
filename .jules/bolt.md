@@ -1,0 +1,3 @@
+## 2025-04-26 - [N+1 Query Elimination in App Load]
+**Learning:** The frontend's `seedBots` function performed a linear scan over all `BOT_TYPES` sequentially issuing an `await getDocs()` query per type to check if the user had initialized a bot. Because there are over 60 `BOT_TYPES`, this N+1 issue dramatically inflated the Firebase initial sync overhead and blocked rendering.
+**Action:** Always fetch the target collection once upfront `await getDocs(collection(...))` and load it into a JavaScript `Set` for `O(1)` memory lookups before iterating over configurations that need to check against that state.
