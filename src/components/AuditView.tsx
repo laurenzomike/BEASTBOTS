@@ -11,30 +11,30 @@ interface AuditViewProps {
 }
 
 export const AuditView: React.FC<AuditViewProps> = ({ bots, activities }) => {
-  const strategicAnalysis = activities.filter(a => a.type === 'analysis');
-  const totalWins = bots.reduce((acc, curr) => acc + (curr.config?.winCount || 0), 0);
+  const strategicAnalysis = React.useMemo(() => activities.filter(a => a.type === 'analysis'), [activities]);
+  const totalWins = React.useMemo(() => bots.reduce((acc, curr) => acc + (curr.config?.winCount || 0), 0), [bots]);
 
   const [chartMode, setChartMode] = React.useState<'activity' | 'efficiency'>('activity');
 
-  const errors = activities.filter(a => a.type === 'error').length;
-  const reliability = activities.length > 0 ? Math.max(0, 100 - (errors / activities.length * 100)).toFixed(1) : "100";
+  const errors = React.useMemo(() => activities.filter(a => a.type === 'error').length, [activities]);
+  const reliability = React.useMemo(() => activities.length > 0 ? Math.max(0, 100 - (errors / activities.length * 100)).toFixed(1) : "100", [activities, errors]);
 
   // Prepare data for activity by bot type
-  const botStats = activities.reduce((acc: any, curr) => {
+  const botStats = React.useMemo(() => activities.reduce((acc: any, curr) => {
     acc[curr.botType] = (acc[curr.botType] || 0) + 1;
     return acc;
-  }, {});
+  }, {}), [activities]);
 
-  const efficiencyData = bots.map(b => ({
+  const efficiencyData = React.useMemo(() => bots.map(b => ({
     name: b.type,
     wins: b.config?.winCount || 0,
     activity: botStats[b.type] || 0,
     ratio: botStats[b.type] ? ((b.config?.winCount || 0) / botStats[b.type] * 100).toFixed(1) : 0
-  })).sort((a, b) => Number(b.ratio) - Number(a.ratio));
+  })).sort((a, b) => Number(b.ratio) - Number(a.ratio)), [bots, botStats]);
 
-  const intelLogs = activities.filter(a => a.botId === 'fleet-intelligence');
+  const intelLogs = React.useMemo(() => activities.filter(a => a.botId === 'fleet-intelligence'), [activities]);
 
-  const chartData = Object.entries(botStats).map(([name, value]) => ({ name, value }));
+  const chartData = React.useMemo(() => Object.entries(botStats).map(([name, value]) => ({ name, value })), [botStats]);
 
   return (
     <div className="flex flex-col gap-16 py-12 px-10 lg:px-14 animate-in fade-in slide-in-from-bottom-6 duration-1000 max-w-screen-2xl mx-auto overflow-hidden">
