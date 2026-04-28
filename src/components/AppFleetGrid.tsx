@@ -34,8 +34,8 @@ export const AppFleetGrid: React.FC<AppFleetGridProps> = ({
   handleConnect,
   globalActivities
 }) => {
-  const activeBots = filteredBots.filter(b => b.status === 'online' || b.status === 'error');
-  const standbyBots = filteredBots.filter(b => b.status === 'offline' || b.status === 'auth-required');
+  const activeBots = React.useMemo(() => filteredBots.filter(b => b.status === 'online' || b.status === 'error'), [filteredBots]);
+  const standbyBots = React.useMemo(() => filteredBots.filter(b => b.status === 'offline' || b.status === 'auth-required'), [filteredBots]);
 
   const [showStandby, setShowStandby] = React.useState(activeBots.length === 0);
 
