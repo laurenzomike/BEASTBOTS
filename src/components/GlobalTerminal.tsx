@@ -28,11 +28,21 @@ export const GlobalTerminal: React.FC<GlobalTerminalProps> = ({
     setCommand('');
   };
 
-  const filteredActivities = globalActivities
-    .filter(a => filter === 'all' || a.botType === filter)
-    .filter(a => a.text.toLowerCase().includes(search.toLowerCase()) || a.botType.toLowerCase().includes(search.toLowerCase()));
+  // ⚡ Bolt Optimization:
+  // - Memoize the filtered activities to prevent redundant O(N) calculations on every render.
+  // - Hoist `search.toLowerCase()` outside the loop.
+  // - Combine two `filter` passes into a single pass to iterate over `globalActivities` only once.
+  // - Removed unused `uniqueBots` which caused another O(N) iteration mapping and Set allocation.
+  const filteredActivities = React.useMemo(() => {
+    const isAll = filter === 'all';
+    const lowerSearch = search.toLowerCase();
 
-  const uniqueBots = Array.from(new Set(globalActivities.map(a => a.botType)));
+    return globalActivities.filter(a => {
+      if (!isAll && a.botType !== filter) return false;
+      if (lowerSearch === '') return true;
+      return a.text.toLowerCase().includes(lowerSearch) || a.botType.toLowerCase().includes(lowerSearch);
+    });
+  }, [globalActivities, filter, search]);
 
   return (
     <>
