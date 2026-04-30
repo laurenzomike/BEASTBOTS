@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useMemo } from "react";
 import { auth, db, login, logout, handleFirestoreError } from "./lib/firebase";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { collection, onSnapshot, doc, setDoc, getDocs, addDoc, query, where, serverTimestamp, orderBy, limit, increment } from "firebase/firestore";
@@ -573,12 +573,18 @@ Keep it to 1-2 authoritative sentences.`;
     }
   };
 
-  const filteredBots = bots.filter(bot => {
-    const matchesSearch = bot.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                         bot.type.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === "all" || bot.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  const filteredBots = useMemo(() => {
+    const searchLower = searchQuery.toLowerCase();
+    return bots.filter(bot => {
+      // Return early if status doesn't match to avoid string operations
+      const matchesStatus = statusFilter === "all" || bot.status === statusFilter;
+      if (!matchesStatus) return false;
+
+      const matchesSearch = bot.name.toLowerCase().includes(searchLower) ||
+                           bot.type.toLowerCase().includes(searchLower);
+      return matchesSearch;
+    });
+  }, [bots, searchQuery, statusFilter]);
 
   if (loading) return (
     <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center text-[var(--brand)] font-display font-black tracking-tighter">
