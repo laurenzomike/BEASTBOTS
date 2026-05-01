@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { ShieldAlert, Zap, BarChart3, TrendingUp, Activity as ActivityIcon, Layers, Cpu, RefreshCw } from "lucide-react";
 import { Bot, Activity } from "../types";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
@@ -11,30 +11,62 @@ interface AuditViewProps {
 }
 
 export const AuditView: React.FC<AuditViewProps> = ({ bots, activities }) => {
-  const strategicAnalysis = activities.filter(a => a.type === 'analysis');
-  const totalWins = bots.reduce((acc, curr) => acc + (curr.config?.winCount || 0), 0);
-
   const [chartMode, setChartMode] = React.useState<'activity' | 'efficiency'>('activity');
 
-  const errors = activities.filter(a => a.type === 'error').length;
-  const reliability = activities.length > 0 ? Math.max(0, 100 - (errors / activities.length * 100)).toFixed(1) : "100";
+  // ⚡ Bolt Optimization:
+  // Combined multiple O(N) array traversals (previously multiple .filter and .reduce calls)
+  // into a single O(N) pass, and wrapped in useMemo to prevent recalculation on every render
+  // (e.g., when chartMode changes). This significantly reduces CPU overhead on large datasets.
+  const { strategicAnalysis, intelLogs, errors, botStats, reliability } = useMemo(() => {
+    const analysis: Activity[] = [];
+    const intel: Activity[] = [];
+    let errCount = 0;
+    const stats: Record<string, number> = {};
 
-  // Prepare data for activity by bot type
-  const botStats = activities.reduce((acc: any, curr) => {
-    acc[curr.botType] = (acc[curr.botType] || 0) + 1;
-    return acc;
-  }, {});
+    for (let i = 0; i < activities.length; i++) {
+      const a = activities[i];
+      if (a.type === 'analysis') {
+        analysis.push(a);
+      } else if (a.type === 'error') {
+        errCount++;
+      }
 
-  const efficiencyData = bots.map(b => ({
-    name: b.type,
-    wins: b.config?.winCount || 0,
-    activity: botStats[b.type] || 0,
-    ratio: botStats[b.type] ? ((b.config?.winCount || 0) / botStats[b.type] * 100).toFixed(1) : 0
-  })).sort((a, b) => Number(b.ratio) - Number(a.ratio));
+      if (a.botId === 'fleet-intelligence') {
+        intel.push(a);
+      }
 
-  const intelLogs = activities.filter(a => a.botId === 'fleet-intelligence');
+      stats[a.botType] = (stats[a.botType] || 0) + 1;
+    }
 
-  const chartData = Object.entries(botStats).map(([name, value]) => ({ name, value }));
+    const rel = activities.length > 0
+      ? Math.max(0, 100 - (errCount / activities.length * 100)).toFixed(1)
+      : "100";
+
+    return {
+      strategicAnalysis: analysis,
+      intelLogs: intel,
+      errors: errCount,
+      botStats: stats,
+      reliability: rel
+    };
+  }, [activities]);
+
+  const totalWins = useMemo(() =>
+    bots.reduce((acc, curr) => acc + (curr.config?.winCount || 0), 0)
+  , [bots]);
+
+  const efficiencyData = useMemo(() =>
+    bots.map(b => ({
+      name: b.type,
+      wins: b.config?.winCount || 0,
+      activity: botStats[b.type] || 0,
+      ratio: botStats[b.type] ? ((b.config?.winCount || 0) / botStats[b.type] * 100).toFixed(1) : 0
+    })).sort((a, b) => Number(b.ratio) - Number(a.ratio))
+  , [bots, botStats]);
+
+  const chartData = useMemo(() =>
+    Object.entries(botStats).map(([name, value]) => ({ name, value }))
+  , [botStats]);
 
   return (
     <div className="flex flex-col gap-16 py-12 px-10 lg:px-14 animate-in fade-in slide-in-from-bottom-6 duration-1000 max-w-screen-2xl mx-auto overflow-hidden">
