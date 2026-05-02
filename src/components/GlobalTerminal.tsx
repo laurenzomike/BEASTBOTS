@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Terminal, ChevronUp, Activity as ActivityIcon, Brain, AlertTriangle } from 'lucide-react';
 import { Activity } from '../types';
@@ -28,11 +28,21 @@ export const GlobalTerminal: React.FC<GlobalTerminalProps> = ({
     setCommand('');
   };
 
-  const filteredActivities = globalActivities
-    .filter(a => filter === 'all' || a.botType === filter)
-    .filter(a => a.text.toLowerCase().includes(search.toLowerCase()) || a.botType.toLowerCase().includes(search.toLowerCase()));
+  // Bolt Performance Optimization:
+  // Memoize the filtered activities to prevent unnecessary re-renders.
+  // Hoist the search query toLowerCase() conversion outside the array filter loop to eliminate redundant operations.
+  const filteredActivities = useMemo(() => {
+    const query = search.toLowerCase();
+    return globalActivities
+      .filter(a => filter === 'all' || a.botType === filter)
+      .filter(a => a.text.toLowerCase().includes(query) || a.botType.toLowerCase().includes(query));
+  }, [globalActivities, filter, search]);
 
-  const uniqueBots = Array.from(new Set(globalActivities.map(a => a.botType)));
+  // Bolt Performance Optimization:
+  // Memoize the derived uniqueBots calculation so it doesn't run on every render.
+  const uniqueBots = useMemo(() => {
+    return Array.from(new Set(globalActivities.map(a => a.botType)));
+  }, [globalActivities]);
 
   return (
     <>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Key, ShieldCheck, ShieldAlert, CheckCircle, RefreshCw, Layers, ExternalLink, Cpu, Trash2, Plus, Search, Filter, X } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -18,22 +18,32 @@ export const IntegrationHub: React.FC<IntegrationHubProps> = ({ bots, handleConn
   const [activeTab, setActiveTab] = useState<'all' | 'connected' | 'unlinked'>('all');
   const [showDeployModal, setShowDeployModal] = useState(false);
 
-  const platforms = BOT_TYPES.map(type => {
-    const instances = bots.filter(b => b.type === type.id);
-    const isConnected = instances.some(b => b.status !== 'auth-required');
-    return {
-      ...type,
-      instances,
-      isConnected
-    };
-  });
+  // Bolt Performance Optimization:
+  // Memoize the derived platforms list so it only recalculates when `bots` updates.
+  const platforms = useMemo(() => {
+    return BOT_TYPES.map(type => {
+      const instances = bots.filter(b => b.type === type.id);
+      const isConnected = instances.some(b => b.status !== 'auth-required');
+      return {
+        ...type,
+        instances,
+        isConnected
+      };
+    });
+  }, [bots]);
 
-  const filteredPlatforms = platforms.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) || p.role.toLowerCase().includes(search.toLowerCase());
-    if (activeTab === 'connected') return matchesSearch && p.isConnected;
-    if (activeTab === 'unlinked') return matchesSearch && !p.isConnected;
-    return matchesSearch;
-  });
+  // Bolt Performance Optimization:
+  // Memoize the filtered platforms list to prevent unnecessary re-renders.
+  // Hoist `search.toLowerCase()` outside the array filter loop to eliminate redundant work.
+  const filteredPlatforms = useMemo(() => {
+    const query = search.toLowerCase();
+    return platforms.filter(p => {
+      const matchesSearch = p.name.toLowerCase().includes(query) || p.role.toLowerCase().includes(query);
+      if (activeTab === 'connected') return matchesSearch && p.isConnected;
+      if (activeTab === 'unlinked') return matchesSearch && !p.isConnected;
+      return matchesSearch;
+    });
+  }, [platforms, search, activeTab]);
 
   return (
     <div className="p-8 lg:p-14 space-y-16 animate-in fade-in slide-in-from-bottom-6 duration-1000 max-w-screen-2xl mx-auto overflow-hidden">
