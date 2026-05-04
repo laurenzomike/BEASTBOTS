@@ -13,7 +13,7 @@ export const login = async () => {
   try {
     await signInWithPopup(auth, provider);
   } catch (error) {
-    console.error("Login failed:", error);
+    console.error("Login failed:", error instanceof Error ? error.message : error);
   }
 };
 
@@ -21,7 +21,7 @@ export const logout = async () => {
   try {
     await signOut(auth);
   } catch (error) {
-    console.error("Logout failed:", error);
+    console.error("Logout failed:", error instanceof Error ? error.message : error);
   }
 };
 
