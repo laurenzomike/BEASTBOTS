@@ -18,6 +18,16 @@ if (!admin.apps.length) {
 }
 const db = admin.firestore();
 
+// Helper to prevent Reflected XSS
+function escapeHtml(unsafe: string): string {
+  return unsafe
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 // Initialize express app
 const app = express();
 const PORT = 3000;
@@ -111,7 +121,7 @@ app.get(["/api/oauth/:provider/callback", "/api/oauth/:provider/callback/"], asy
   const { code, state, error } = req.query;
 
   if (error) {
-    return res.send(`<html><body><p>Error: ${error}</p></body></html>`);
+    return res.send(`<html><body><p>Error: ${escapeHtml(String(error))}</p></body></html>`);
   }
 
   try {
@@ -162,8 +172,9 @@ app.get(["/api/oauth/:provider/callback", "/api/oauth/:provider/callback/"], asy
     const tokens = await tokenResponse.json();
 
     if (tokens.error) {
-      console.error(`Oauth Token Error [${provider}]:`, tokens);
-      return res.status(400).send(`<html><body><h3>Authentication Error</h3><p>${tokens.error_description || tokens.error}</p></body></html>`);
+      const errorMessage = tokens.error_description || tokens.error;
+      console.error(`Oauth Token Error [${provider}]:`, errorMessage);
+      return res.status(400).send(`<html><body><h3>Authentication Error</h3><p>${escapeHtml(String(errorMessage))}</p></body></html>`);
     }
 
     if (tokens.access_token) {
@@ -194,7 +205,8 @@ app.get(["/api/oauth/:provider/callback", "/api/oauth/:provider/callback/"], asy
         <body>
           <script>
             if (window.opener) {
-               window.opener.postMessage({ type: 'OAUTH_AUTH_SUCCESS', provider: '${provider}' }, '*');
+               const provider = ${JSON.stringify(provider).replace(/</g, '\\u003c')};
+               window.opener.postMessage({ type: 'OAUTH_AUTH_SUCCESS', provider }, '*');
                window.close();
             } else {
                window.location.href = '/';
@@ -205,7 +217,7 @@ app.get(["/api/oauth/:provider/callback", "/api/oauth/:provider/callback/"], asy
       </html>
     `);
   } catch (err) {
-    console.error("Token exchange failed:", err);
+    console.error("Token exchange failed:", err instanceof Error ? err.message : err);
     res.status(500).send("Token exchange failed.");
   }
 });
@@ -790,7 +802,7 @@ app.post("/api/execute/:botType", async (req, res) => {
     res.json({ success: true, executed: true, data: executionResult });
 
   } catch (err: any) {
-    console.error(`Live execution failed for ${botType}:`, err);
+    console.error(`Live execution failed for ${botType}:`, err instanceof Error ? err.message : err);
     res.status(500).json({ error: "Execution failed", details: err.message });
   }
 });

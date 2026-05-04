@@ -356,7 +356,7 @@ Keep it to 1-2 authoritative sentences.`;
              });
              // Real execution logged by server logic.
           } catch (e) {
-             console.error("Execution engine failed:", e);
+             console.error("Execution engine failed:", e instanceof Error ? e.message : e);
           }
       } else {
         // Just an analysis, log it normally independent of execution
@@ -371,7 +371,7 @@ Keep it to 1-2 authoritative sentences.`;
       }
 
     } catch (err) {
-      console.error(`AI Error for ${bot.id}:`, err);
+      console.error(`AI Error for ${bot.id}:`, err instanceof Error ? err.message : err);
     } finally {
       setExecutingBots(prev => {
         const next = new Set(prev);
@@ -435,7 +435,12 @@ Keep it to 1-2 authoritative sentences.`;
     const handleOAuthMessage = (event: MessageEvent) => {
       // Validate origin is from AI Studio preview or localhost
       const origin = event.origin;
-      if (!origin.endsWith('.run.app') && !origin.includes('localhost')) {
+      const allowedOrigins = [
+        'https://aistudio.google.com',
+        'https://ai.studio',
+        window.location.origin
+      ];
+      if (!allowedOrigins.includes(origin)) {
         return;
       }
       
