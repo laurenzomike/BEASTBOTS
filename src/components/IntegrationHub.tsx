@@ -18,8 +18,17 @@ export const IntegrationHub: React.FC<IntegrationHubProps> = ({ bots, handleConn
   const [activeTab, setActiveTab] = useState<'all' | 'connected' | 'unlinked'>('all');
   const [showDeployModal, setShowDeployModal] = useState(false);
 
+  // Optimization: Pre-group bot instances by type in O(N) instead of O(N*M) nested filter
+  const instancesByType = new Map<string, typeof bots>();
+  for (const bot of bots) {
+    if (!instancesByType.has(bot.type)) {
+      instancesByType.set(bot.type, []);
+    }
+    instancesByType.get(bot.type)!.push(bot);
+  }
+
   const platforms = BOT_TYPES.map(type => {
-    const instances = bots.filter(b => b.type === type.id);
+    const instances = instancesByType.get(type.id) || [];
     const isConnected = instances.some(b => b.status !== 'auth-required');
     return {
       ...type,
@@ -28,8 +37,10 @@ export const IntegrationHub: React.FC<IntegrationHubProps> = ({ bots, handleConn
     };
   });
 
+  // Optimization: Cache search.toLowerCase() to avoid redundant string allocations in the loop
+  const lowerSearch = search.toLowerCase();
   const filteredPlatforms = platforms.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) || p.role.toLowerCase().includes(search.toLowerCase());
+    const matchesSearch = p.name.toLowerCase().includes(lowerSearch) || p.role.toLowerCase().includes(lowerSearch);
     if (activeTab === 'connected') return matchesSearch && p.isConnected;
     if (activeTab === 'unlinked') return matchesSearch && !p.isConnected;
     return matchesSearch;
