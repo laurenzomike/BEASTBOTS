@@ -573,9 +573,11 @@ Keep it to 1-2 authoritative sentences.`;
     }
   };
 
+  // Optimization: Cache searchQuery.toLowerCase() to avoid redundant string allocations in the loop
+  const lowerSearchQuery = searchQuery.toLowerCase();
   const filteredBots = bots.filter(bot => {
-    const matchesSearch = bot.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                         bot.type.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = bot.name.toLowerCase().includes(lowerSearchQuery) ||
+                         bot.type.toLowerCase().includes(lowerSearchQuery);
     const matchesStatus = statusFilter === "all" || bot.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
