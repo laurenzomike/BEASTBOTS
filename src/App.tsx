@@ -183,7 +183,7 @@ export default function App() {
     const unsubscribeActivities = onSnapshot(activitiesQuery, (snapshot) => {
       const acts: Activity[] = [];
       snapshot.forEach((doc) => acts.push({ id: doc.id, ...doc.data() } as Activity));
-      acts.sort((a, b) => (b.timestamp?.toMillis() || 0) - (a.timestamp?.toMillis() || 0));
+      acts.sort((a, b) => ((b.timestamp && "toMillis" in b.timestamp ? b.timestamp.toMillis() : 0) - (a.timestamp && "toMillis" in a.timestamp ? a.timestamp.toMillis() : 0)));
       setGlobalActivities(acts.slice(0, 50)); 
     });
 
@@ -476,7 +476,7 @@ Keep it to 1-2 authoritative sentences.`;
           winCount: 0,
           schedule: "24/7",
           responsibilities: typeDef.responsibilities?.filter(r => r.defaultEnabled).map(r => r.id) || [],
-          parameters: typeDef.parameters?.reduce((acc, p) => ({ ...acc, [p.id]: p.defaultValue }), {}) || {}
+          parameters: typeDef.parameters?.reduce((acc, p) => ({ ...acc, [p.id]: p.defaultValue }), {} as Record<string, string | number | boolean>) || {}
         }
       };
 

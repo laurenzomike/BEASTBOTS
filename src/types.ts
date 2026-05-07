@@ -1,4 +1,5 @@
 import { User } from "firebase/auth";
+import type { Timestamp, FieldValue } from "firebase/firestore";
 
 export type BotStatus = "online" | "offline" | "error" | "auth-required";
 
@@ -17,11 +18,11 @@ export interface Bot {
     schedule?: string;
     responsibilities?: string[];
     isInitialized?: boolean;
-    [key: string]: any;
+    [key: string]: string | number | boolean | string[] | Record<string, unknown> | undefined;
   };
   userId?: string;
-  createdAt?: any;
-  updatedAt?: any;
+  createdAt?: Timestamp | FieldValue;
+  updatedAt?: Timestamp | FieldValue;
 }
 
 export interface BotFile {
@@ -39,7 +40,7 @@ export interface Activity {
   botId: string;
   botType: string;
   text: string;
-  timestamp: any;
+  timestamp: Timestamp | FieldValue;
   type?: 'action' | 'analysis' | 'error';
 }
 
@@ -48,7 +49,7 @@ export interface Memory {
   botId: string;
   fact: string;
   sourceLogId?: string;
-  createdAt: any;
+  createdAt: Timestamp | FieldValue;
 }
 
 export interface Responsibility {
@@ -62,7 +63,7 @@ export interface ParameterSchema {
   id: string;
   label: string;
   type: 'string' | 'number' | 'toggle' | 'select';
-  defaultValue: any;
+  defaultValue: string | number | boolean;
   min?: number;
   max?: number;
   options?: string[];
