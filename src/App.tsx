@@ -156,12 +156,17 @@ export default function App() {
       snapshot.forEach((doc) => {
         loadedBots.push({ id: doc.id, ...doc.data() } as Bot);
       });
+      const typeIndexMap = new Map<string, number>();
+      for (let i = 0; i < BOT_TYPES.length; i++) {
+        typeIndexMap.set(BOT_TYPES[i].id, i);
+      }
       loadedBots.sort((a, b) => {
-        const idxA = BOT_TYPES.findIndex(bt => bt.id === a.type);
-        const idxB = BOT_TYPES.findIndex(bt => bt.id === b.type);
+        const idxA = typeIndexMap.get(a.type) ?? -1;
+        const idxB = typeIndexMap.get(b.type) ?? -1;
         return idxA - idxB;
       });
-      setBots(loadedBots.filter(b => BOT_TYPES.some(bt => bt.id === b.type)));
+      const validTypes = new Set(typeIndexMap.keys());
+      setBots(loadedBots.filter(b => validTypes.has(b.type)));
     }, (error) => {
       handleFirestoreError(error, 'list', `users/${user.uid}/bots`);
     });
