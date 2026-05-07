@@ -56,7 +56,7 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   
   const coordinatorRef = useRef<NodeJS.Timeout | null>(null);
-  const lastRunTracker = useRef<Record<string, any>>({});
+  const lastRunTracker = useRef<Record<string, number>>({});
 
   const addToast = (message: string, type: Toast["type"] = "info") => {
     const id = Math.random().toString(36).substr(2, 9);
