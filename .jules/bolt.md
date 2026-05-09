@@ -1,0 +1,3 @@
+## 2024-05-24 - Frontend Array Iteration Bottlenecks
+**Learning:** Found an O(N*M) lookup pattern and multiple redundant O(N) array traversals inside a single component `AppFleetGrid.tsx`. Calling `.find()` inside a `.map()` during a React render is a massive performance bottleneck. Also, chaining multiple `.filter` and `.reduce` on the same array duplicates work heavily.
+**Action:** Always replace `.find()` inside `.map()` with a precomputed `Map` built using `useMemo()`. Consolidate multiple O(N) array traversals (filters, aggregations) into a single standard `for...of` loop inside a `useMemo` block whenever possible.
