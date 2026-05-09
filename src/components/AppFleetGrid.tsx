@@ -34,8 +34,46 @@ export const AppFleetGrid: React.FC<AppFleetGridProps> = ({
   handleConnect,
   globalActivities
 }) => {
-  const activeBots = filteredBots.filter(b => b.status === 'online' || b.status === 'error');
-  const standbyBots = filteredBots.filter(b => b.status === 'offline' || b.status === 'auth-required');
+  // Bolt Optimization: Consolidate activeBots and standbyBots filtering into a single O(N) pass.
+  const { activeBots, standbyBots } = React.useMemo(() => {
+    const active: Bot[] = [];
+    const standby: Bot[] = [];
+    for (const bot of filteredBots) {
+      if (bot.status === 'online' || bot.status === 'error') {
+        active.push(bot);
+      } else if (bot.status === 'offline' || bot.status === 'auth-required') {
+        standby.push(bot);
+      }
+    }
+    return { activeBots: active, standbyBots: standby };
+  }, [filteredBots]);
+
+  // Bolt Optimization: Consolidate Fleet Summary Row stats into a single O(N) pass.
+  const fleetStats = React.useMemo(() => {
+    let onlineCount = 0;
+    let totalWins = 0;
+    let totalWorkflows = 0;
+    for (const bot of bots) {
+      if (bot.status === 'online') {
+        onlineCount++;
+      }
+      totalWins += bot.config?.winCount || 0;
+      totalWorkflows += bot.config?.workflows?.length || 0;
+    }
+    return { onlineCount, totalWins, totalWorkflows };
+  }, [bots]);
+
+  // Bolt Optimization: Replace O(N*M) `.find()` logic inside the render map with an O(N) lookup Map.
+  const activityMap = React.useMemo(() => {
+    const map = new Map<string, string>();
+    for (const activity of globalActivities) {
+      // Use the first activity encountered to match .find() logic
+      if (!map.has(activity.botId)) {
+        map.set(activity.botId, activity.text || "");
+      }
+    }
+    return map;
+  }, [globalActivities]);
 
   const [showStandby, setShowStandby] = React.useState(activeBots.length === 0);
 
@@ -52,9 +90,9 @@ export const AppFleetGrid: React.FC<AppFleetGridProps> = ({
       <div className="hidden lg:grid grid-cols-2 xl:grid-cols-4 gap-6 px-12 pt-12">
          {[
            { label: "Total Fleet", value: bots.length, color: "bg-white", detail: "Defined Protocols" },
-           { label: "Active Cycles", value: bots.filter(b => b.status === 'online').length, color: "bg-[var(--brand)]", detail: "Online Units" },
-           { label: "Protocol Wins", value: bots.reduce((a, b) => a + (b.config?.winCount || 0), 0), color: "bg-[#00E0FF]", detail: "Strategic Success" },
-           { label: "Active Threads", value: bots.reduce((a, b) => a + (b.config?.workflows?.length || 0), 0), color: "bg-[#FF2E00] text-white", detail: "Running Automations" }
+           { label: "Active Cycles", value: fleetStats.onlineCount, color: "bg-[var(--brand)]", detail: "Online Units" },
+           { label: "Protocol Wins", value: fleetStats.totalWins, color: "bg-[#00E0FF]", detail: "Strategic Success" },
+           { label: "Active Threads", value: fleetStats.totalWorkflows, color: "bg-[#FF2E00] text-white", detail: "Running Automations" }
          ].map(stat => (
             <div key={stat.label} className={cn("p-6 border-[4px] border-black brutal-shadow group transition-transform hover:-translate-y-1 relative overflow-hidden", stat.color)}>
                <div className="absolute top-2 right-2 opacity-10 group-hover:opacity-100 transition-opacity">
@@ -132,7 +170,7 @@ export const AppFleetGrid: React.FC<AppFleetGridProps> = ({
             className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-8"
           >
             {activeBots.map((bot, i) => {
-              const lastLog = globalActivities.find(a => a.botId === bot.id)?.text || "";
+              const lastLog = activityMap.get(bot.id) || "";
               return (
                 <motion.div 
                   key={bot.id}
