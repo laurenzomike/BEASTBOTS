@@ -1,0 +1,3 @@
+## 2024-05-24 - React Render Cycle O(N*M) Map Optimization
+**Learning:** In React components like `AppFleetGrid.tsx` that render lists of items based on a secondary data source (e.g., mapping fleet bots to their most recent activity log), using `Array.prototype.find()` inside the render `.map()` loop leads to an O(N*M) time complexity bottleneck. This scales poorly as the activity stream grows.
+**Action:** When pairing data arrays in React renders, build an O(1) Lookup Map via `React.useMemo` (iterating forwards to only set keys that don't exist yet, mimicking the `find` behavior for the latest/first match) and wrap derived filtering state (like `activeBots`) in `useMemo` as well to prevent redundant O(N) filtering on every render.
