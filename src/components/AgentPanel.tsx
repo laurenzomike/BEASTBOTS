@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { doc, setDoc, serverTimestamp, collection, addDoc, query, where, onSnapshot, limit, orderBy, getDocs, deleteDoc } from "firebase/firestore";
 import { db, handleFirestoreError, auth } from "../lib/firebase";
 import { cn } from "../lib/utils";
-import { GoogleGenAI } from "@google/genai";
+import { generateAIContent } from "../lib/aiProxy";
 import { BOT_TYPES, PLATFORM_WORKFLOWS } from "../constants";
 import { BEHAVIORAL_TEMPLATES } from "../constants/prompts";
 import { Bot, BotFile } from "../types";
@@ -16,7 +16,6 @@ interface AgentPanelProps {
   onClose: () => void;
 }
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 export function AgentPanel({ bot, onClose }: AgentPanelProps) {
   const [workflows, setWorkflows] = useState<any[]>(bot?.config?.workflows || []);
@@ -118,12 +117,9 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
       Context: You are ${bot.type}. Your current strategy is ${strategy}.
       Instructions: Execute this manual command. Format output with [ACTION] or [ANALYSIS]. If you take an action, it will be executed on the server.`;
       
-      const result = await ai.models.generateContent({
-        model: "gemini-3.1-pro-preview",
-        contents: prompt
-      });
+      const responseText = await generateAIContent(prompt, "gemini-3.1-pro-preview");
       
-      const output = result.text || `[ANALYSIS] Manual command acknowledged but no action taken.`;
+      const output = responseText || `[ANALYSIS] Manual command acknowledged but no action taken.`;
       
       await addDoc(collection(db, "users", auth.currentUser!.uid, "activities"), {
         userId: auth.currentUser!.uid,
@@ -216,12 +212,9 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
     addLog(`Initiating AI Simulation Cycle for ${bot.name}...`);
     try {
       const prompt = `Simulate an execution step for ${bot.type}. Current strategy: ${strategy}. Global goals: ${bot.config.userGoal || "Dominance"}. Provide a short report formatted starting with [ACTION] or [ANALYSIS] like a standard operation.`;
-      const result = await ai.models.generateContent({
-        model: "gemini-3.1-pro-preview",
-        contents: prompt
-      });
+      const responseText = await generateAIContent(prompt, "gemini-3.1-pro-preview");
       
-      const output = result.text || `[ANALYSIS] Maintaining standby status.`;
+      const output = responseText || `[ANALYSIS] Maintaining standby status.`;
       
       await addDoc(collection(db, "users", auth.currentUser!.uid, "activities"), {
         userId: auth.currentUser!.uid,
@@ -289,11 +282,8 @@ export function AgentPanel({ bot, onClose }: AgentPanelProps) {
       if (rawText.trim()) {
         try {
           const prompt = `Synthesize a highly tactical, 1-sentence summary of this document for a BEAST BOT knowledge base. Focus on mission-critical utility. Document: ${rawText.substring(0, 8000)}`;
-          const result = await ai.models.generateContent({
-            model: "gemini-3.1-pro-preview",
-            contents: prompt
-          });
-          summary = result.text || "AI Synthesis failed. Partial fragment stored.";
+          const responseText = await generateAIContent(prompt, "gemini-3.1-pro-preview");
+          summary = responseText || "AI Synthesis failed. Partial fragment stored.";
         } catch (aiErr) {
           console.error("AI Summary failed", aiErr);
           summary = rawText.substring(0, 300) + "... [RAW_FRAGMENT]";

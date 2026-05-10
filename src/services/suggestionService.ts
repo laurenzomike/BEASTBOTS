@@ -1,7 +1,6 @@
-import { GoogleGenAI } from "@google/genai";
+import { generateAIContent } from "../lib/aiProxy";
 import { PLATFORM_WORKFLOWS } from "../constants";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 export async function suggestWorkflows(botType: string, userGoal: string, currentWorkflows: any[] = []) {
   const platformData = PLATFORM_WORKFLOWS[botType];
@@ -39,16 +38,9 @@ export async function suggestWorkflows(botType: string, userGoal: string, curren
   4. The goal is business growth and operational efficiency.`;
 
   try {
-    const result = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: prompt,
-      config: { 
-        temperature: 0.8,
-        responseMimeType: "application/json" 
-      }
-    });
+    const responseText = await generateAIContent(prompt, "gemini-2.5-flash", undefined, 0.8, "application/json");
 
-    const parsed = JSON.parse(result.text || "[]");
+    const parsed = JSON.parse(responseText || "[]");
     return Array.isArray(parsed) ? parsed : [];
   } catch (e) {
     console.error("Suggestion error:", e);

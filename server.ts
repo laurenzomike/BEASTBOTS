@@ -6,8 +6,11 @@ import dotenv from "dotenv";
 import admin from "firebase-admin";
 import firebaseConfig from "./firebase-applet-config.json";
 import { google } from "googleapis";
+import { GoogleGenAI } from "@google/genai";
 
 dotenv.config();
+
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 // Initialize Firebase Admin
 if (!admin.apps.length) {
@@ -207,6 +210,48 @@ app.get(["/api/oauth/:provider/callback", "/api/oauth/:provider/callback/"], asy
   } catch (err) {
     console.error("Token exchange failed:", err);
     res.status(500).send("Token exchange failed.");
+  }
+});
+
+
+// AI Generation Proxy Endpoint
+app.post("/api/ai/generate", async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: "Missing or invalid authorization header" });
+  }
+
+  const idToken = authHeader.split('Bearer ')[1];
+
+  try {
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    const uid = decodedToken.uid;
+
+    const { prompt, model, systemInstruction, temperature, responseMimeType, tools } = req.body;
+
+    if (!prompt) {
+      return res.status(400).json({ error: "Missing prompt" });
+    }
+
+    const config: any = {};
+    if (systemInstruction) config.systemInstruction = systemInstruction;
+    if (temperature !== undefined) config.temperature = temperature;
+    if (responseMimeType) config.responseMimeType = responseMimeType;
+    if (tools) config.tools = tools;
+
+    const response = await ai.models.generateContent({
+      model: model || "gemini-3.1-pro-preview",
+      contents: prompt,
+      config: Object.keys(config).length > 0 ? config : undefined
+    });
+
+    res.json({ text: response.text });
+  } catch (error: any) {
+    console.error("AI Generation Proxy Error:", error.message || error);
+    if (error.code && error.code.startsWith('auth/')) {
+       return res.status(401).json({ error: "Invalid authentication token" });
+    }
+    res.status(500).json({ error: "AI Generation failed" });
   }
 });
 

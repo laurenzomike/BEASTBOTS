@@ -18,7 +18,7 @@ import { GlobalSettings } from "./components/GlobalSettings";
 import { AppFleetGrid } from "./components/AppFleetGrid";
 import { BotCard } from "./components/BotCard";
 import { AuditView } from "./components/AuditView";
-import { GoogleGenAI } from "@google/genai";
+import { generateAIContent } from "./lib/aiProxy";
 import { handleBotErrorTransition } from "./lib/errorUtils";
 import { IntegrationHub } from "./components/IntegrationHub";
 import { getRelevantMemories, saveMemory } from "./services/memoryService";
@@ -27,7 +27,6 @@ import { BOT_TYPES } from "./constants";
 import { motion, AnimatePresence } from "motion/react";
 import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 interface Toast {
   id: string;
@@ -114,12 +113,8 @@ export default function App() {
       
       Keep it professional, technical, and data-driven. Use the '${persona}' persona.`;
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3.1-pro-preview",
-        contents: prompt,
-        config: { temperature: 0.7 }
-      });
-      setBriefing(response.text || "Operational parameters within noise floor.");
+      const responseText = await generateAIContent(prompt, "gemini-3.1-pro-preview", undefined, 0.7);
+      setBriefing(responseText || "Operational parameters within noise floor.");
       addToast("Fleet intelligence updated.", "success");
     } catch (e) {
       console.error("Failed to generate briefing", e);
@@ -275,20 +270,13 @@ Output format:
 
 Keep it to 1-2 authoritative sentences.`;
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3.1-pro-preview",
-        contents: prompt,
-        config: {
-          systemInstruction: `You are the ${bot.type} elite Bot. Decisive and technical. 
+      const systemInstruction = `You are the ${bot.type} elite Bot. Decisive and technical.
           
           USER COMMAND DIRECTIVES:
-          ${botConfig.systemDirective || "Maintain peak efficiency and data-driven objectivity."}`,
-          temperature: 0.8,
-          tools: [{ googleSearch: {} }]
-        }
-      });
+          ${botConfig.systemDirective || "Maintain peak efficiency and data-driven objectivity."}`;
 
-      const output = response.text || `[ANALYSIS] Maintaining standby status for ${bot.type}.`;
+      const responseText = await generateAIContent(prompt, "gemini-3.1-pro-preview", systemInstruction, 0.8, undefined, [{ googleSearch: {} }]);
+      const output = responseText || `[ANALYSIS] Maintaining standby status for ${bot.type}.`;
 
       // Strategic Intelligence Sharing
       if (output.includes('[STRATEGIC_SHARE]')) {
