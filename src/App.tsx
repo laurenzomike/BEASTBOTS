@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useMemo } from "react";
 import { auth, db, login, logout, handleFirestoreError } from "./lib/firebase";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { collection, onSnapshot, doc, setDoc, getDocs, addDoc, query, where, serverTimestamp, orderBy, limit, increment } from "firebase/firestore";
@@ -573,12 +573,20 @@ Keep it to 1-2 authoritative sentences.`;
     }
   };
 
-  const filteredBots = bots.filter(bot => {
-    const matchesSearch = bot.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                         bot.type.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === "all" || bot.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  // ⚡ Bolt Performance Optimization:
+  // 1. Memoize filteredBots to prevent O(N) recalculation on every render (e.g. when typing in terminal).
+  // 2. Cache searchQuery.toLowerCase() to avoid O(N) redundant string operations.
+  // 3. Early return on O(1) status match before executing O(M) string search operations.
+  const filteredBots = useMemo(() => {
+    const queryLower = searchQuery.toLowerCase();
+    return bots.filter(bot => {
+      const matchesStatus = statusFilter === "all" || bot.status === statusFilter;
+      if (!matchesStatus) return false;
+
+      return bot.name.toLowerCase().includes(queryLower) ||
+             bot.type.toLowerCase().includes(queryLower);
+    });
+  }, [bots, searchQuery, statusFilter]);
 
   if (loading) return (
     <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center text-[var(--brand)] font-display font-black tracking-tighter">
