@@ -1,0 +1,3 @@
+## 2026-05-12 - O(N*M) React Render Bottlenecks
+**Learning:** Using `.find()` inside `.map()` in React render functions creates hidden O(N*M) performance bottlenecks, especially when paired with frequently updating state arrays like `globalActivities`. Building a Lookup Map memoized with `React.useMemo` reduces complexity to O(N+M) and yields measurable performance gains.
+**Action:** Always scan for `.find()` or `.filter()` within `.map()` in rendering loops. Extract these to an O(1) Lookup Map constructed before the render loop, using `useMemo` if the array dependencies don't change on every render.
