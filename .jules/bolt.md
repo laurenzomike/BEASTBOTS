@@ -1,0 +1,3 @@
+## 2026-05-15 - React useMemo and Invariant Extraction
+**Learning:** When filtering arrays based on user input, repeatedly calling `.toLowerCase()` inside a `.filter()` callback leads to redundant O(N) operations. Additionally, placing complex array filtering directly in the render body causes unnecessary recalculations during component re-renders.
+**Action:** Always wrap array filtering logic that depends on state in `useMemo`. Extract invariant operations (such as converting a search query to lowercase) outside of the `.filter()` callback to ensure they are computed only once per recalculation instead of N times.
