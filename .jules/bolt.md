@@ -1,0 +1,5 @@
+## 2025-02-23 - AppFleetGrid Component Rendering Optimization
+
+**Learning:** When rendering lists of components (e.g. `BotCard` in `AppFleetGrid`) that require data from a separate collection (`globalActivities`), using `.find()` inside the `.map()` function introduces O(N*M) time complexity. For large arrays, this can significantly delay rendering.
+
+**Action:** Replace nested `.find()` loops inside `.map()` with an O(1) hash map lookup. Compute a `Map` of the target collection using `useMemo` outside the render loop. To preserve the logic of `Array.prototype.find()`, only set the map key if it does not already exist, ensuring the map contains the first matching element. Use the precomputed map inside the `.map()` loop to fetch necessary data in O(1) time, bringing the total time complexity down to O(N+M).
