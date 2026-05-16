@@ -76,8 +76,8 @@ export default function App() {
           globalDirective: input,
           updatedAt: serverTimestamp() 
         }, { merge: true });
-      } catch (err) {
-        console.error("Failed to persist directive:", err);
+      } catch (err: any) {
+        console.error("Failed to persist directive:", err.message || err);
       }
       
       setBriefing(`PROTOCOL SHIFT: Pursuing "${input.slice(0, 40)}..."`);
@@ -121,8 +121,8 @@ export default function App() {
       });
       setBriefing(response.text || "Operational parameters within noise floor.");
       addToast("Fleet intelligence updated.", "success");
-    } catch (e) {
-      console.error("Failed to generate briefing", e);
+    } catch (e: any) {
+      console.error("Failed to generate briefing", e.message || e);
     } finally {
       setIsBriefingLoading(false);
     }
@@ -136,8 +136,8 @@ export default function App() {
       if (u) {
           seedBots(u.uid).then(() => {
               setLoading(false);
-          }).catch((err) => {
-              console.error("Seed bots failed, but app will start:", err);
+          }).catch((err: any) => {
+              console.error("Seed bots failed, but app will start:", err.message || err);
               setLoading(false);
           });
       } else {
@@ -355,8 +355,8 @@ Keep it to 1-2 authoritative sentences.`;
                })
              });
              // Real execution logged by server logic.
-          } catch (e) {
-             console.error("Execution engine failed:", e);
+          } catch (e: any) {
+             console.error("Execution engine failed:", e.message || e);
           }
       } else {
         // Just an analysis, log it normally independent of execution
@@ -370,8 +370,8 @@ Keep it to 1-2 authoritative sentences.`;
         });
       }
 
-    } catch (err) {
-      console.error(`AI Error for ${bot.id}:`, err);
+    } catch (err: any) {
+      console.error(`AI Error for ${bot.id}:`, err.message || err);
     } finally {
       setExecutingBots(prev => {
         const next = new Set(prev);
@@ -435,7 +435,7 @@ Keep it to 1-2 authoritative sentences.`;
     const handleOAuthMessage = (event: MessageEvent) => {
       // Validate origin is from AI Studio preview or localhost
       const origin = event.origin;
-      if (!origin.endsWith('.run.app') && !origin.includes('localhost')) {
+      if (origin !== 'https://aistudio.google.com' && origin !== 'https://ai.studio' && origin !== window.location.origin) {
         return;
       }
       
@@ -483,8 +483,8 @@ Keep it to 1-2 authoritative sentences.`;
       await setDoc(newBotRef, newBot);
       addToast("New agent deployment successful.", "success");
       setCurrentView('fleet');
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      console.error(err.message || err);
       addToast("Failed to provision agent node.", "error");
     }
   };
@@ -521,8 +521,8 @@ Keep it to 1-2 authoritative sentences.`;
         });
       }, 1500);
 
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      console.error(e.message || e);
       addToast("Failed to transmit command.", "error");
     }
   };
