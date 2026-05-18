@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useMemo } from "react";
 import { auth, db, login, logout, handleFirestoreError } from "./lib/firebase";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { collection, onSnapshot, doc, setDoc, getDocs, addDoc, query, where, serverTimestamp, orderBy, limit, increment } from "firebase/firestore";
@@ -556,29 +556,38 @@ Keep it to 1-2 authoritative sentences.`;
 
   const seedBots = async (userId: string) => {
     const botsRef = collection(db, "users", userId, "bots");
+    const existingBotsSnap = await getDocs(botsRef);
+    const existingTypes = new Set(existingBotsSnap.docs.map(d => d.data().type));
+
     for (const bt of BOT_TYPES) {
+      if (existingTypes.has(bt.id)) continue;
+
       const isTrading = ["kalshi", "polymarket", "alpaca", "coinbase"].includes(bt.id);
       const docRef = doc(botsRef, bt.id);
-      const snap = await getDocs(query(botsRef, where("type", "==", bt.id)));
-      if (snap.empty) {
-        await setDoc(docRef, {
-          userId, name: bt.name, type: bt.id, status: isTrading ? "online" : "auth-required",
-          config: { 
-            ...(isTrading ? { scheduleType: "interval", intervalMs: 300000 } : {}),
-            userGoal: globalDirective
-          },
-          createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
-        });
-      }
+
+      await setDoc(docRef, {
+        userId, name: bt.name, type: bt.id, status: isTrading ? "online" : "auth-required",
+        config: {
+          ...(isTrading ? { scheduleType: "interval", intervalMs: 300000 } : {}),
+          userGoal: globalDirective
+        },
+        createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+      });
     }
   };
 
-  const filteredBots = bots.filter(bot => {
-    const matchesSearch = bot.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                         bot.type.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === "all" || bot.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  const filteredBots = useMemo(() => {
+    const searchLower = searchQuery.toLowerCase();
+    const isStatusAll = statusFilter === "all";
+
+    return bots.filter(bot => {
+      if (!isStatusAll && bot.status !== statusFilter) return false;
+      if (!searchLower) return true;
+
+      return bot.name.toLowerCase().includes(searchLower) ||
+             bot.type.toLowerCase().includes(searchLower);
+    });
+  }, [bots, searchQuery, statusFilter]);
 
   if (loading) return (
     <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center text-[var(--brand)] font-display font-black tracking-tighter">
