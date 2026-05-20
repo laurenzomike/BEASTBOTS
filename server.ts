@@ -194,7 +194,7 @@ app.get(["/api/oauth/:provider/callback", "/api/oauth/:provider/callback/"], asy
         <body>
           <script>
             if (window.opener) {
-               window.opener.postMessage({ type: 'OAUTH_AUTH_SUCCESS', provider: '${provider}' }, '*');
+               window.opener.postMessage({ type: 'OAUTH_AUTH_SUCCESS', provider: ${JSON.stringify(provider).replace(/</g, '\\u003c')} }, '*');
                window.close();
             } else {
                window.location.href = '/';
