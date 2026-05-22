@@ -162,8 +162,14 @@ app.get(["/api/oauth/:provider/callback", "/api/oauth/:provider/callback/"], asy
     const tokens = await tokenResponse.json();
 
     if (tokens.error) {
-      console.error(`Oauth Token Error [${provider}]:`, tokens);
-      return res.status(400).send(`<html><body><h3>Authentication Error</h3><p>${tokens.error_description || tokens.error}</p></body></html>`);
+      console.error(`Oauth Token Error [${provider}]:`, tokens.error_description || tokens.error || "Unknown token error");
+      const errorMessage = String(tokens.error_description || tokens.error || "Unknown error")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+      return res.status(400).send(`<html><body><h3>Authentication Error</h3><p>${errorMessage}</p></body></html>`);
     }
 
     if (tokens.access_token) {
@@ -189,12 +195,13 @@ app.get(["/api/oauth/:provider/callback", "/api/oauth/:provider/callback/"], asy
       }, { merge: true });
     }
 
+    const safeProvider = JSON.stringify(provider).replace(/</g, '\\u003c');
     res.send(`
       <html>
         <body>
           <script>
             if (window.opener) {
-               window.opener.postMessage({ type: 'OAUTH_AUTH_SUCCESS', provider: '${provider}' }, '*');
+               window.opener.postMessage({ type: 'OAUTH_AUTH_SUCCESS', provider: ${safeProvider} }, '*');
                window.close();
             } else {
                window.location.href = '/';
@@ -204,8 +211,8 @@ app.get(["/api/oauth/:provider/callback", "/api/oauth/:provider/callback/"], asy
         </body>
       </html>
     `);
-  } catch (err) {
-    console.error("Token exchange failed:", err);
+  } catch (err: any) {
+    console.error("Token exchange failed:", err.message || err);
     res.status(500).send("Token exchange failed.");
   }
 });
@@ -790,7 +797,7 @@ app.post("/api/execute/:botType", async (req, res) => {
     res.json({ success: true, executed: true, data: executionResult });
 
   } catch (err: any) {
-    console.error(`Live execution failed for ${botType}:`, err);
+    console.error(`Live execution failed for ${botType}:`, err.message || err);
     res.status(500).json({ error: "Execution failed", details: err.message });
   }
 });
