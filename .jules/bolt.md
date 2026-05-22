@@ -1,0 +1,3 @@
+## 2025-01-20 - Optimizing Nested Array Traversals in React Maps
+**Learning:** Using `Array.prototype.find()` inside an `Array.prototype.map()` during React rendering creates an `O(N*M)` time complexity bottleneck, causing excessive CPU cycles on every render, especially when data sets (like global activity logs) grow.
+**Action:** Always pre-compute relational lookups using a `Map` wrapped in `useMemo` outside the render loop to reduce complexity to `O(N+M)`. When replicating `Array.prototype.find()`'s behavior of getting the *first* match, iterate forward and use `!map.has(key)` to prevent overwriting.
