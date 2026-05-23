@@ -1,0 +1,3 @@
+## 2024-12-04 - Unmemoized Array Filtering & String Operations
+**Learning:** Found an unmemoized array derivation (`filteredBots`) in `src/App.tsx` that calls `toLowerCase()` on `searchQuery` inside the `filter` loop on every render. This creates `O(N)` redundant string allocations and operations during each React component render, exacerbated by checking more expensive string operations before cheaper status checks (missing short-circuiting).
+**Action:** When filtering arrays based on a search string, always wrap the logic in `useMemo`. Pre-calculate the invariant `searchQuery.toLowerCase()` outside the loop but inside the memo, and use short-circuit evaluation by checking cheap conditions first.
