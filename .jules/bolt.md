@@ -1,0 +1,3 @@
+## 2025-02-12 - React useMemo Optimization
+**Learning:** In a codebase with multiple real-time dependencies and frequent re-renders (like from a global activities log or a frequently updated bots list), mapping over large data structures without `useMemo` can lead to measurable UI stutter during type-in events (e.g., in a search query).
+**Action:** Always wrap array filtering routines involving text searches or object mappings inside a `useMemo` block, and ensure invariant properties like `.toLowerCase()` string manipulations are hoisted outside the `.filter` loop to prevent O(N) recalculations.
