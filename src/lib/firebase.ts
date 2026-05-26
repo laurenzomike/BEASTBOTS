@@ -70,6 +70,7 @@ async function testConnection() {
     if (error instanceof Error && error.message.includes("the client is offline")) {
       console.error("Please check your Firebase configuration.");
     }
+    throw error;
   }
 }
-testConnection();
+testConnection().catch(console.error);
