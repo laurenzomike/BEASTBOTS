@@ -1,0 +1,3 @@
+## 2024-05-24 - React Memoization and Invariant Extraction
+**Learning:** Wrapping complex filtering logic in `useMemo` is not always enough for optimal performance. Extracting invariant computations (like converting a search query to lowercase) outside of the `.filter()` callback prevents redundant operations inside the `O(N)` loop. Short-circuit evaluation (e.g. returning early on unmatched status) further speeds up processing by avoiding unnecessary string comparisons.
+**Action:** When filtering collections inside React components, check for redundant operations inside the loop. Pull invariant variables outside of the loop, inside the `useMemo` block. Also evaluate short-circuit paths where expensive comparison tasks can be avoided.
