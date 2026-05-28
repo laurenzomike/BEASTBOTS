@@ -1,0 +1,3 @@
+## 2026-05-28 - Optimize Array Filtering in Render loops
+**Learning:** React re-renders can be slow when processing long lists on every render, especially if filtering involves object allocations or expensive string manipulations like `.toLowerCase()`.
+**Action:** Always wrap derived lists in `useMemo`. When filtering arrays based on a text search query, extract invariant operations (e.g., converting the search term to lowercase) outside the `.filter()` callback. Also, place inexpensive checks (like boolean flags or simple string matches for status) before expensive string manipulations or array methods to short-circuit iteration.
