@@ -1,0 +1,3 @@
+## 2023-10-27 - [Consolidating React Renders with O(N) Maps & Loops]
+**Learning:** Performing multiple array traversals using methods like `.filter` and `.reduce` directly inside JSX, or nesting `.find` within an array `.map` creates an O(N*M) or O(N+M) rendering bottleneck. In heavily re-rendered dashboard components like `AppFleetGrid.tsx` dealing with relatively high node counts, this results in noticeable lag.
+**Action:** Extract repetitive array traversals outside the JSX. Group logic together using a single standard `for` loop inside `useMemo` block. When cross-referencing collections (e.g. associating logs to active bots), build an O(1) Lookup Map via a forward pass on the primary dataset to avoid using `.find` inside a loop.

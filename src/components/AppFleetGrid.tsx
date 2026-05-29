@@ -34,10 +34,42 @@ export const AppFleetGrid: React.FC<AppFleetGridProps> = ({
   handleConnect,
   globalActivities
 }) => {
-  const activeBots = filteredBots.filter(b => b.status === 'online' || b.status === 'error');
-  const standbyBots = filteredBots.filter(b => b.status === 'offline' || b.status === 'auth-required');
+  const { activeBots, standbyBots } = React.useMemo(() => {
+    const active: Bot[] = [];
+    const standby: Bot[] = [];
+    for (const b of filteredBots) {
+      if (b.status === 'online' || b.status === 'error') {
+        active.push(b);
+      } else if (b.status === 'offline' || b.status === 'auth-required') {
+        standby.push(b);
+      }
+    }
+    return { activeBots: active, standbyBots: standby };
+  }, [filteredBots]);
 
   const [showStandby, setShowStandby] = React.useState(activeBots.length === 0);
+
+  const globalActivitiesMap = React.useMemo(() => {
+    const map = new Map<string, string>();
+    for (const activity of globalActivities) {
+      if (!map.has(activity.botId)) {
+        map.set(activity.botId, activity.text);
+      }
+    }
+    return map;
+  }, [globalActivities]);
+
+  const fleetStats = React.useMemo(() => {
+    let activeCycles = 0;
+    let protocolWins = 0;
+    let activeThreads = 0;
+    for (const bot of bots) {
+      if (bot.status === 'online') activeCycles++;
+      protocolWins += (bot.config?.winCount || 0);
+      activeThreads += (bot.config?.workflows?.length || 0);
+    }
+    return { activeCycles, protocolWins, activeThreads };
+  }, [bots]);
 
   return (
     <motion.div 
@@ -52,9 +84,9 @@ export const AppFleetGrid: React.FC<AppFleetGridProps> = ({
       <div className="hidden lg:grid grid-cols-2 xl:grid-cols-4 gap-6 px-12 pt-12">
          {[
            { label: "Total Fleet", value: bots.length, color: "bg-white", detail: "Defined Protocols" },
-           { label: "Active Cycles", value: bots.filter(b => b.status === 'online').length, color: "bg-[var(--brand)]", detail: "Online Units" },
-           { label: "Protocol Wins", value: bots.reduce((a, b) => a + (b.config?.winCount || 0), 0), color: "bg-[#00E0FF]", detail: "Strategic Success" },
-           { label: "Active Threads", value: bots.reduce((a, b) => a + (b.config?.workflows?.length || 0), 0), color: "bg-[#FF2E00] text-white", detail: "Running Automations" }
+           { label: "Active Cycles", value: fleetStats.activeCycles, color: "bg-[var(--brand)]", detail: "Online Units" },
+           { label: "Protocol Wins", value: fleetStats.protocolWins, color: "bg-[#00E0FF]", detail: "Strategic Success" },
+           { label: "Active Threads", value: fleetStats.activeThreads, color: "bg-[#FF2E00] text-white", detail: "Running Automations" }
          ].map(stat => (
             <div key={stat.label} className={cn("p-6 border-[4px] border-black brutal-shadow group transition-transform hover:-translate-y-1 relative overflow-hidden", stat.color)}>
                <div className="absolute top-2 right-2 opacity-10 group-hover:opacity-100 transition-opacity">
@@ -132,7 +164,7 @@ export const AppFleetGrid: React.FC<AppFleetGridProps> = ({
             className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-8"
           >
             {activeBots.map((bot, i) => {
-              const lastLog = globalActivities.find(a => a.botId === bot.id)?.text || "";
+              const lastLog = globalActivitiesMap.get(bot.id) || "";
               return (
                 <motion.div 
                   key={bot.id}
