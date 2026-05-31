@@ -1,0 +1,3 @@
+## 2024-05-31 - React Filter Optimization
+**Learning:** React component derived state often re-calculates invariant operations like `.toLowerCase()` on string variables for every item in an array during a `.filter()` or `.map()` pass. This redundant O(N) operation runs on *every render*, causing unnecessary CPU cycles on large collections.
+**Action:** Always wrap expensive list derivations in `useMemo`. When doing so, extract invariant string computations (like `searchQuery.toLowerCase()`) *outside* of the filter callback but *inside* the useMemo block, and combine multiple array traversals into single O(N) loops.
