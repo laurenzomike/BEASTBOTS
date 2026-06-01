@@ -34,8 +34,54 @@ export const AppFleetGrid: React.FC<AppFleetGridProps> = ({
   handleConnect,
   globalActivities
 }) => {
-  const activeBots = filteredBots.filter(b => b.status === 'online' || b.status === 'error');
-  const standbyBots = filteredBots.filter(b => b.status === 'offline' || b.status === 'auth-required');
+  // ⚡ Bolt Performance Optimization:
+  // Consolidated 5 independent O(N) array traversals (2x filter, 1x reduce, 2x map)
+  // into a single O(N) pass loop wrapped in useMemo to drastically reduce render complexity.
+  const { activeBots, standbyBots, onlineCount, winCount, workflowsCount } = React.useMemo(() => {
+    const active: Bot[] = [];
+    const standby: Bot[] = [];
+
+    for (let i = 0; i < filteredBots.length; i++) {
+      const b = filteredBots[i];
+      if (b.status === 'online' || b.status === 'error') {
+        active.push(b);
+      } else if (b.status === 'offline' || b.status === 'auth-required') {
+        standby.push(b);
+      }
+    }
+
+    let oCount = 0;
+    let wCount = 0;
+    let wfCount = 0;
+    for (let i = 0; i < bots.length; i++) {
+      const b = bots[i];
+      if (b.status === 'online') oCount++;
+      wCount += b.config?.winCount || 0;
+      wfCount += b.config?.workflows?.length || 0;
+    }
+
+    return {
+      activeBots: active,
+      standbyBots: standby,
+      onlineCount: oCount,
+      winCount: wCount,
+      workflowsCount: wfCount
+    };
+  }, [filteredBots, bots]);
+
+  // ⚡ Bolt Performance Optimization:
+  // Replaced an O(N*M) nested `.find()` lookup inside the `activeBots.map` render
+  // with an O(1) Map lookup built ahead of time inside `useMemo`.
+  const activityMap = React.useMemo(() => {
+    const map = new Map<string, string>();
+    for (let i = 0; i < globalActivities.length; i++) {
+      const a = globalActivities[i];
+      if (!map.has(a.botId)) {
+        map.set(a.botId, a.text);
+      }
+    }
+    return map;
+  }, [globalActivities]);
 
   const [showStandby, setShowStandby] = React.useState(activeBots.length === 0);
 
@@ -52,9 +98,9 @@ export const AppFleetGrid: React.FC<AppFleetGridProps> = ({
       <div className="hidden lg:grid grid-cols-2 xl:grid-cols-4 gap-6 px-12 pt-12">
          {[
            { label: "Total Fleet", value: bots.length, color: "bg-white", detail: "Defined Protocols" },
-           { label: "Active Cycles", value: bots.filter(b => b.status === 'online').length, color: "bg-[var(--brand)]", detail: "Online Units" },
-           { label: "Protocol Wins", value: bots.reduce((a, b) => a + (b.config?.winCount || 0), 0), color: "bg-[#00E0FF]", detail: "Strategic Success" },
-           { label: "Active Threads", value: bots.reduce((a, b) => a + (b.config?.workflows?.length || 0), 0), color: "bg-[#FF2E00] text-white", detail: "Running Automations" }
+           { label: "Active Cycles", value: onlineCount, color: "bg-[var(--brand)]", detail: "Online Units" },
+           { label: "Protocol Wins", value: winCount, color: "bg-[#00E0FF]", detail: "Strategic Success" },
+           { label: "Active Threads", value: workflowsCount, color: "bg-[#FF2E00] text-white", detail: "Running Automations" }
          ].map(stat => (
             <div key={stat.label} className={cn("p-6 border-[4px] border-black brutal-shadow group transition-transform hover:-translate-y-1 relative overflow-hidden", stat.color)}>
                <div className="absolute top-2 right-2 opacity-10 group-hover:opacity-100 transition-opacity">
@@ -132,7 +178,7 @@ export const AppFleetGrid: React.FC<AppFleetGridProps> = ({
             className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-8"
           >
             {activeBots.map((bot, i) => {
-              const lastLog = globalActivities.find(a => a.botId === bot.id)?.text || "";
+              const lastLog = activityMap.get(bot.id) || "";
               return (
                 <motion.div 
                   key={bot.id}
