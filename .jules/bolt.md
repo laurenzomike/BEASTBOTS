@@ -1,0 +1,3 @@
+## 2024-05-14 - React Performance Convention: useMemo for Filtering
+**Learning:** Found filtering logic in React components (e.g. GlobalTerminal.tsx) that runs on every render without memoization. Furthermore, invariant operations like `search.toLowerCase()` are performed inside the filter callback (`O(N)` times) instead of once outside.
+**Action:** When extracting derived state or filtering logic in React components, wrap it in `useMemo`. When memoizing array filtering logic, extract invariant computations outside of the callback but inside the memoization block to prevent redundant `O(N)` operations on every render.
