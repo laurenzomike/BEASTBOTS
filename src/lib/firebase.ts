@@ -2,6 +2,7 @@ import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
 import { getFirestore, doc, getDocFromServer } from "firebase/firestore";
 import firebaseConfig from "../../firebase-applet-config.json";
+import { FirebaseError } from "firebase/app";
 
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
@@ -38,8 +39,8 @@ export interface FirestoreErrorInfo {
   }
 }
 
-export const handleFirestoreError = (error: any, operationType: FirestoreErrorInfo['operationType'], path: string | null = null) => {
-  if (error?.code === 'permission-denied') {
+export const handleFirestoreError = (error: unknown, operationType: FirestoreErrorInfo['operationType'], path: string | null = null) => {
+  if (error instanceof FirebaseError && error.code === 'permission-denied') {
     const user = auth.currentUser;
     const errorInfo: FirestoreErrorInfo = {
       error: error.message,
