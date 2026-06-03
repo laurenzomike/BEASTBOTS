@@ -1,0 +1,3 @@
+## 2024-05-24 - React useMemo & Array.filter Optimizations
+**Learning:** In React components with frequent state updates (like search inputs or status filters), invariant computations like `toLowerCase()` inside an array `.filter()` method create redundant O(N) operations. Short-circuiting inexpensive checks (like status matching) before expensive string manipulations avoids unnecessary object creation and processing.
+**Action:** Always extract invariant computations outside of array callbacks, preferably within a `useMemo` block. When combining multiple filter conditions, order them from least computationally expensive to most computationally expensive to utilize short-circuit evaluation.
