@@ -1,0 +1,3 @@
+## 2024-06-04 - O(N*M) Render Loop Antipattern
+**Learning:** Found a specific antipattern in `AppFleetGrid.tsx` where `.find()` was called on an unbounded array (`globalActivities`) inside a `.map()` render loop over the bot collection. As both the number of activities and bots increase, this O(N*M) calculation executes on every render.
+**Action:** Use an O(1) Lookup Map (`lastActivityMap`) precomputed with `useMemo`. When replacing `.find()`, remember to iterate the collection forwards and only call `.set()` if the key isn't already present in order to perfectly preserve the original return-first-match behavior.
