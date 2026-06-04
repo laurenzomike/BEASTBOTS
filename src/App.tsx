@@ -77,7 +77,7 @@ export default function App() {
           updatedAt: serverTimestamp() 
         }, { merge: true });
       } catch (err) {
-        console.error("Failed to persist directive:", err);
+        console.error("Failed to persist directive:", err instanceof Error ? err.message : err);
       }
       
       setBriefing(`PROTOCOL SHIFT: Pursuing "${input.slice(0, 40)}..."`);
@@ -122,7 +122,7 @@ export default function App() {
       setBriefing(response.text || "Operational parameters within noise floor.");
       addToast("Fleet intelligence updated.", "success");
     } catch (e) {
-      console.error("Failed to generate briefing", e);
+      console.error("Failed to generate briefing", e instanceof Error ? e.message : e);
     } finally {
       setIsBriefingLoading(false);
     }
@@ -137,7 +137,7 @@ export default function App() {
           seedBots(u.uid).then(() => {
               setLoading(false);
           }).catch((err) => {
-              console.error("Seed bots failed, but app will start:", err);
+              console.error("Seed bots failed, but app will start:", err instanceof Error ? err.message : err);
               setLoading(false);
           });
       } else {
@@ -356,7 +356,7 @@ Keep it to 1-2 authoritative sentences.`;
              });
              // Real execution logged by server logic.
           } catch (e) {
-             console.error("Execution engine failed:", e);
+             console.error("Execution engine failed:", e instanceof Error ? e.message : e);
           }
       } else {
         // Just an analysis, log it normally independent of execution
@@ -371,7 +371,7 @@ Keep it to 1-2 authoritative sentences.`;
       }
 
     } catch (err) {
-      console.error(`AI Error for ${bot.id}:`, err);
+      console.error(`AI Error for ${bot.id}:`, err instanceof Error ? err.message : err);
     } finally {
       setExecutingBots(prev => {
         const next = new Set(prev);
@@ -435,7 +435,8 @@ Keep it to 1-2 authoritative sentences.`;
     const handleOAuthMessage = (event: MessageEvent) => {
       // Validate origin is from AI Studio preview or localhost
       const origin = event.origin;
-      if (!origin.endsWith('.run.app') && !origin.includes('localhost')) {
+      const validOrigins = ['https://aistudio.google.com', 'https://ai.studio', window.location.origin];
+      if (!validOrigins.includes(origin)) {
         return;
       }
       
@@ -484,7 +485,7 @@ Keep it to 1-2 authoritative sentences.`;
       addToast("New agent deployment successful.", "success");
       setCurrentView('fleet');
     } catch (err) {
-      console.error(err);
+      console.error(err instanceof Error ? err.message : err);
       addToast("Failed to provision agent node.", "error");
     }
   };
@@ -522,7 +523,7 @@ Keep it to 1-2 authoritative sentences.`;
       }, 1500);
 
     } catch (e) {
-      console.error(e);
+      console.error(e instanceof Error ? e.message : e);
       addToast("Failed to transmit command.", "error");
     }
   };
