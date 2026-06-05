@@ -39,6 +39,38 @@ export const AppFleetGrid: React.FC<AppFleetGridProps> = ({
 
   const [showStandby, setShowStandby] = React.useState(activeBots.length === 0);
 
+  const activityMap = React.useMemo(() => {
+    const map = new Map<string, string>();
+    // Activities are typically sorted desc (most recent first) in the global list,
+    // but if we want the most recent, we should set it if it doesn't exist yet,
+    // assuming we iterate forward and the first one encountered is the most recent.
+    for (let i = 0; i < globalActivities.length; i++) {
+      const act = globalActivities[i];
+      if (act.botId && !map.has(act.botId)) {
+        map.set(act.botId, act.text);
+      }
+    }
+    return map;
+  }, [globalActivities]);
+
+  const fleetStats = React.useMemo(() => {
+    let onlineCount = 0;
+    let winCount = 0;
+    let workflowsCount = 0;
+    for (let i = 0; i < bots.length; i++) {
+      const b = bots[i];
+      if (b.status === 'online') onlineCount++;
+      winCount += b.config?.winCount || 0;
+      workflowsCount += b.config?.workflows?.length || 0;
+    }
+    return [
+      { label: "Total Fleet", value: bots.length, color: "bg-white", detail: "Defined Protocols" },
+      { label: "Active Cycles", value: onlineCount, color: "bg-[var(--brand)]", detail: "Online Units" },
+      { label: "Protocol Wins", value: winCount, color: "bg-[#00E0FF]", detail: "Strategic Success" },
+      { label: "Active Threads", value: workflowsCount, color: "bg-[#FF2E00] text-white", detail: "Running Automations" }
+    ];
+  }, [bots]);
+
   return (
     <motion.div 
       key="fleet"
@@ -50,12 +82,7 @@ export const AppFleetGrid: React.FC<AppFleetGridProps> = ({
     >
       {/* Fleet Summary Row (Desktop Only) */}
       <div className="hidden lg:grid grid-cols-2 xl:grid-cols-4 gap-6 px-12 pt-12">
-         {[
-           { label: "Total Fleet", value: bots.length, color: "bg-white", detail: "Defined Protocols" },
-           { label: "Active Cycles", value: bots.filter(b => b.status === 'online').length, color: "bg-[var(--brand)]", detail: "Online Units" },
-           { label: "Protocol Wins", value: bots.reduce((a, b) => a + (b.config?.winCount || 0), 0), color: "bg-[#00E0FF]", detail: "Strategic Success" },
-           { label: "Active Threads", value: bots.reduce((a, b) => a + (b.config?.workflows?.length || 0), 0), color: "bg-[#FF2E00] text-white", detail: "Running Automations" }
-         ].map(stat => (
+         {fleetStats.map(stat => (
             <div key={stat.label} className={cn("p-6 border-[4px] border-black brutal-shadow group transition-transform hover:-translate-y-1 relative overflow-hidden", stat.color)}>
                <div className="absolute top-2 right-2 opacity-10 group-hover:opacity-100 transition-opacity">
                   <ActivityIcon className="w-4 h-4 animate-pulse" />
@@ -132,7 +159,7 @@ export const AppFleetGrid: React.FC<AppFleetGridProps> = ({
             className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-8"
           >
             {activeBots.map((bot, i) => {
-              const lastLog = globalActivities.find(a => a.botId === bot.id)?.text || "";
+              const lastLog = activityMap.get(bot.id) || "";
               return (
                 <motion.div 
                   key={bot.id}
