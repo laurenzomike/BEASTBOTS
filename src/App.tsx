@@ -433,9 +433,13 @@ Keep it to 1-2 authoritative sentences.`;
 
   useEffect(() => {
     const handleOAuthMessage = (event: MessageEvent) => {
-      // Validate origin is from AI Studio preview or localhost
+      // Validate origin is strictly from allowed domains
       const origin = event.origin;
-      if (!origin.endsWith('.run.app') && !origin.includes('localhost')) {
+      if (
+        origin !== 'https://aistudio.google.com' &&
+        origin !== 'https://ai.studio' &&
+        origin !== window.location.origin
+      ) {
         return;
       }
       
