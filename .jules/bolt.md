@@ -1,0 +1,3 @@
+## 2024-05-18 - [Optimizing O(n²) array lookups in React renders]
+**Learning:** React components sometimes map over an array (`activeBots`) and call `.find()` on another array (`globalActivities`) in every iteration to pair items. This creates an O(N*M) time complexity on every render, which is a significant bottleneck when rendering lists.
+**Action:** Always replace O(n²) nested loop lookups with an O(1) hash map lookup. Create a `useMemo` block that constructs a Map or an object dictionary out of the lookup array (`globalActivities`) first (O(M)), and then do O(1) lookups during the `.map()` iteration, reducing the overall complexity to O(N+M).
