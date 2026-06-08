@@ -9,6 +9,19 @@ import { google } from "googleapis";
 
 dotenv.config();
 
+const escapeHTML = (str: string) => {
+  return str.replace(/[&<>"']/g, (match) => {
+    switch (match) {
+      case '&': return '&amp;';
+      case '<': return '&lt;';
+      case '>': return '&gt;';
+      case '"': return '&quot;';
+      case "'": return '&#39;';
+      default: return match;
+    }
+  });
+};
+
 // Initialize Firebase Admin
 if (!admin.apps.length) {
   admin.initializeApp({
@@ -111,7 +124,7 @@ app.get(["/api/oauth/:provider/callback", "/api/oauth/:provider/callback/"], asy
   const { code, state, error } = req.query;
 
   if (error) {
-    return res.send(`<html><body><p>Error: ${error}</p></body></html>`);
+    return res.send(`<html><body><p>Error: ${escapeHTML(String(error))}</p></body></html>`);
   }
 
   try {
@@ -163,7 +176,7 @@ app.get(["/api/oauth/:provider/callback", "/api/oauth/:provider/callback/"], asy
 
     if (tokens.error) {
       console.error(`Oauth Token Error [${provider}]:`, tokens);
-      return res.status(400).send(`<html><body><h3>Authentication Error</h3><p>${tokens.error_description || tokens.error}</p></body></html>`);
+      return res.status(400).send(`<html><body><h3>Authentication Error</h3><p>${escapeHTML(String(tokens.error_description || tokens.error))}</p></body></html>`);
     }
 
     if (tokens.access_token) {
@@ -189,12 +202,13 @@ app.get(["/api/oauth/:provider/callback", "/api/oauth/:provider/callback/"], asy
       }, { merge: true });
     }
 
+    const safeProvider = JSON.stringify(provider).replace(/</g, '\\u003c');
     res.send(`
       <html>
         <body>
           <script>
             if (window.opener) {
-               window.opener.postMessage({ type: 'OAUTH_AUTH_SUCCESS', provider: '${provider}' }, '*');
+               window.opener.postMessage({ type: 'OAUTH_AUTH_SUCCESS', provider: ${safeProvider} }, '*');
                window.close();
             } else {
                window.location.href = '/';
