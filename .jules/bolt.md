@@ -1,0 +1,3 @@
+## 2024-06-09 - React O(N) String Computations Bottleneck
+**Learning:** In a codebase simulating a high-frequency status panel (`App.tsx` sorting/filtering agents), unmemoized `.filter()` combined with inline string manipulation (`.toLowerCase()`) acts as a hidden multiplier. Because React triggers constant re-renders during state transitions (e.g. status updates, typing), recalculating `searchQuery.toLowerCase()` inside a loop across O(N) bots causes significant UI jank.
+**Action:** Always wrap derived list logic in `useMemo` when array sizes scale or state changes rapidly. Extract invariant derivations (like converting query inputs to lowercase) outside of iteration loops to flatten the performance complexity.
