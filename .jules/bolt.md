@@ -1,0 +1,3 @@
+## 2024-06-10 - React Array Filtering Memoization and Invariant Extraction
+**Learning:** In React, placing invariant computations (like `searchQuery.toLowerCase()`) inside an unmemoized array `.filter()` callback leads to redundant O(N) operations on every render.
+**Action:** Always wrap derived list state in `useMemo` when rendering large lists. Extract invariant operations outside of the loop callback but inside the memoization block, and use short-circuit evaluation for inexpensive checks (like exact equality matches) before expensive operations (like string manipulation).
