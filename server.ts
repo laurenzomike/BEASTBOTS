@@ -22,6 +22,15 @@ const db = admin.firestore();
 const app = express();
 const PORT = 3000;
 
+function escapeHtml(unsafe: string): string {
+  return String(unsafe)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 app.use(express.json());
 
 // API Routes
@@ -163,7 +172,7 @@ app.get(["/api/oauth/:provider/callback", "/api/oauth/:provider/callback/"], asy
 
     if (tokens.error) {
       console.error(`Oauth Token Error [${provider}]:`, tokens);
-      return res.status(400).send(`<html><body><h3>Authentication Error</h3><p>${tokens.error_description || tokens.error}</p></body></html>`);
+      return res.status(400).send(`<html><body><h3>Authentication Error</h3><p>${escapeHtml(tokens.error_description || tokens.error)}</p></body></html>`);
     }
 
     if (tokens.access_token) {
@@ -189,12 +198,13 @@ app.get(["/api/oauth/:provider/callback", "/api/oauth/:provider/callback/"], asy
       }, { merge: true });
     }
 
+    const safeProvider = JSON.stringify(provider).replace(/</g, '\\u003c');
     res.send(`
       <html>
         <body>
           <script>
             if (window.opener) {
-               window.opener.postMessage({ type: 'OAUTH_AUTH_SUCCESS', provider: '${provider}' }, '*');
+               window.opener.postMessage({ type: 'OAUTH_AUTH_SUCCESS', provider: ${safeProvider} }, '*');
                window.close();
             } else {
                window.location.href = '/';
