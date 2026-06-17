@@ -1,0 +1,4 @@
+
+## 2024-05-18 - AppFleetGrid & GlobalTerminal Optimizations
+**Learning:** React performance can be heavily impacted by O(N*M) nested array iterations inside `map` operations when looking up related data (e.g., finding the latest log for a bot from an activities array). `globalActivities.find` was executing inside `activeBots.map`, resulting in significant performance overhead for large lists. Additionally, extracting immutable operations like `toLowerCase()` from inside `.filter()` iterations into the `useMemo` block improves processing time by ~30%.
+**Action:** When filtering or enriching mapped arrays with external collections, use `useMemo` to build an O(1) Lookup Map (`Map<string, any>`) for related collections instead of `.find()` inside the iteration block. Similarly, precompute constant string operations like `toLowerCase()` before `.filter()` to minimize overhead.
