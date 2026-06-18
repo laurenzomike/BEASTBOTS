@@ -1,0 +1,3 @@
+## 2024-11-20 - O(N*M) Array Lookup Anti-Pattern in React Render Loop
+**Learning:** Found a performance bottleneck where `globalActivities.find()` was called inside a `.map()` during a React render cycle (`AppFleetGrid.tsx`), resulting in O(N*M) complexity when rendering lists of bots with their associated activities. The bottleneck is exacerbated by frequent re-renders caused by telemetry or state updates.
+**Action:** Always replace O(N*M) nested array searches with an O(N) hash map lookup (e.g., using `new Map()` or a plain object) memoized via `React.useMemo`. Iterate forward through the source array to build the map, setting keys only if they don't exist to preserve `Array.prototype.find()` semantics.
