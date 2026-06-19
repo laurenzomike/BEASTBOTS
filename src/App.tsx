@@ -573,12 +573,18 @@ Keep it to 1-2 authoritative sentences.`;
     }
   };
 
-  const filteredBots = bots.filter(bot => {
-    const matchesSearch = bot.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                         bot.type.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === "all" || bot.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  const filteredBots = React.useMemo(() => {
+    const lowerQuery = searchQuery.toLowerCase();
+    const isStatusAll = statusFilter === "all";
+    return bots.filter(bot => {
+      const matchesStatus = isStatusAll || bot.status === statusFilter;
+      if (!matchesStatus) return false;
+      const matchesSearch = !lowerQuery ||
+                           bot.name.toLowerCase().includes(lowerQuery) ||
+                           bot.type.toLowerCase().includes(lowerQuery);
+      return matchesSearch;
+    });
+  }, [bots, searchQuery, statusFilter]);
 
   if (loading) return (
     <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center text-[var(--brand)] font-display font-black tracking-tighter">
