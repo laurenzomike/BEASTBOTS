@@ -161,9 +161,18 @@ app.get(["/api/oauth/:provider/callback", "/api/oauth/:provider/callback/"], asy
 
     const tokens = await tokenResponse.json();
 
+    const escapeHTML = (str: string) => {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    };
+
     if (tokens.error) {
       console.error(`Oauth Token Error [${provider}]:`, tokens);
-      return res.status(400).send(`<html><body><h3>Authentication Error</h3><p>${tokens.error_description || tokens.error}</p></body></html>`);
+      return res.status(400).send(`<html><body><h3>Authentication Error</h3><p>${escapeHTML(tokens.error_description || tokens.error)}</p></body></html>`);
     }
 
     if (tokens.access_token) {
@@ -194,7 +203,7 @@ app.get(["/api/oauth/:provider/callback", "/api/oauth/:provider/callback/"], asy
         <body>
           <script>
             if (window.opener) {
-               window.opener.postMessage({ type: 'OAUTH_AUTH_SUCCESS', provider: '${provider}' }, '*');
+               window.opener.postMessage({ type: 'OAUTH_AUTH_SUCCESS', provider: ${JSON.stringify(provider).replace(/</g, '\\u003c')} }, window.location.origin);
                window.close();
             } else {
                window.location.href = '/';
