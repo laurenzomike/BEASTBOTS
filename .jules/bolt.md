@@ -1,0 +1,3 @@
+## 2025-06-23 - Optimizing List Filtering in React
+**Learning:** In React components with frequent renders (like search inputs), filtering large arrays (e.g., `bots.filter()`) without memoization causes redundant O(N) operations. Performing expensive operations like `string.toLowerCase()` inside the filter callback multiplies this cost.
+**Action:** Always wrap heavy list processing logic in `useMemo`. Extract invariant operations (like lowercasing the search query) outside the `.filter()` callback but inside the memoization block. Additionally, utilize short-circuit evaluation by performing inexpensive checks (like boolean comparisons) before expensive string manipulations to improve processing speed.
