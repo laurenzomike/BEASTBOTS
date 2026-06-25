@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Key, ShieldCheck, ShieldAlert, CheckCircle, RefreshCw, Layers, ExternalLink, Cpu, Trash2, Plus, Search, Filter, X } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -28,12 +28,14 @@ export const IntegrationHub: React.FC<IntegrationHubProps> = ({ bots, handleConn
     };
   });
 
-  const filteredPlatforms = platforms.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) || p.role.toLowerCase().includes(search.toLowerCase());
-    if (activeTab === 'connected') return matchesSearch && p.isConnected;
-    if (activeTab === 'unlinked') return matchesSearch && !p.isConnected;
-    return matchesSearch;
-  });
+  const filteredPlatforms = useMemo(() => {
+    const lowerSearch = search.toLowerCase();
+    return platforms.filter(p => {
+      if (activeTab === 'connected' && !p.isConnected) return false;
+      if (activeTab === 'unlinked' && p.isConnected) return false;
+      return p.name.toLowerCase().includes(lowerSearch) || p.role.toLowerCase().includes(lowerSearch);
+    });
+  }, [platforms, search, activeTab]);
 
   return (
     <div className="p-8 lg:p-14 space-y-16 animate-in fade-in slide-in-from-bottom-6 duration-1000 max-w-screen-2xl mx-auto overflow-hidden">

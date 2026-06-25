@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Terminal, ChevronUp, Activity as ActivityIcon, Brain, AlertTriangle } from 'lucide-react';
 import { Activity } from '../types';
@@ -28,9 +28,13 @@ export const GlobalTerminal: React.FC<GlobalTerminalProps> = ({
     setCommand('');
   };
 
-  const filteredActivities = globalActivities
-    .filter(a => filter === 'all' || a.botType === filter)
-    .filter(a => a.text.toLowerCase().includes(search.toLowerCase()) || a.botType.toLowerCase().includes(search.toLowerCase()));
+  const filteredActivities = useMemo(() => {
+    const lowerSearch = search.toLowerCase();
+    return globalActivities.filter(a => {
+      if (filter !== 'all' && a.botType !== filter) return false;
+      return a.text.toLowerCase().includes(lowerSearch) || a.botType.toLowerCase().includes(lowerSearch);
+    });
+  }, [globalActivities, filter, search]);
 
   const uniqueBots = Array.from(new Set(globalActivities.map(a => a.botType)));
 
