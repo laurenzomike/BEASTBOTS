@@ -28,11 +28,19 @@ export const GlobalTerminal: React.FC<GlobalTerminalProps> = ({
     setCommand('');
   };
 
-  const filteredActivities = globalActivities
-    .filter(a => filter === 'all' || a.botType === filter)
-    .filter(a => a.text.toLowerCase().includes(search.toLowerCase()) || a.botType.toLowerCase().includes(search.toLowerCase()));
+  const { filteredActivities, uniqueBots } = React.useMemo(() => {
+    const searchLower = search.toLowerCase();
 
-  const uniqueBots = Array.from(new Set(globalActivities.map(a => a.botType)));
+    const filtered = globalActivities.filter(a => {
+      if (filter !== 'all' && a.botType !== filter) return false;
+      if (!searchLower) return true;
+      return a.text.toLowerCase().includes(searchLower) || a.botType.toLowerCase().includes(searchLower);
+    });
+
+    const unique = Array.from(new Set(globalActivities.map(a => a.botType)));
+
+    return { filteredActivities: filtered, uniqueBots: unique };
+  }, [globalActivities, filter, search]);
 
   return (
     <>
