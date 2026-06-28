@@ -1,0 +1,3 @@
+## 2024-06-28 - O(N*M) array find lookup in fleet grid rendering
+**Learning:** Found a performance bottleneck in `src/components/AppFleetGrid.tsx` where an `O(N*M)` nested lookup (`globalActivities.find` inside `activeBots.map`) runs on every render to fetch the last activity log. For large fleets and activity histories, this causes unnecessary main thread blocking. React context makes it worse since this grid might re-render frequently on status updates.
+**Action:** Replaced the `O(N*M)` `Array.prototype.find()` inside `.map()` with an O(N+M) `Map` lookup and `useMemo` to construct it efficiently. Since `find` gets the *first* matching element, building the map requires iterating forwards and using `.has()` check, or iterating backwards without `.has()`.
