@@ -22,6 +22,15 @@ const db = admin.firestore();
 const app = express();
 const PORT = 3000;
 
+const escapeHtml = (unsafe: string) => {
+  return String(unsafe)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+};
+
 app.use(express.json());
 
 // API Routes
@@ -111,7 +120,7 @@ app.get(["/api/oauth/:provider/callback", "/api/oauth/:provider/callback/"], asy
   const { code, state, error } = req.query;
 
   if (error) {
-    return res.send(`<html><body><p>Error: ${error}</p></body></html>`);
+    return res.send(`<html><body><p>Error: ${escapeHtml(String(error))}</p></body></html>`);
   }
 
   try {
@@ -163,7 +172,8 @@ app.get(["/api/oauth/:provider/callback", "/api/oauth/:provider/callback/"], asy
 
     if (tokens.error) {
       console.error(`Oauth Token Error [${provider}]:`, tokens);
-      return res.status(400).send(`<html><body><h3>Authentication Error</h3><p>${tokens.error_description || tokens.error}</p></body></html>`);
+      const errMsg = tokens.error_description || tokens.error;
+      return res.status(400).send(`<html><body><h3>Authentication Error</h3><p>${escapeHtml(String(errMsg))}</p></body></html>`);
     }
 
     if (tokens.access_token) {
@@ -194,7 +204,7 @@ app.get(["/api/oauth/:provider/callback", "/api/oauth/:provider/callback/"], asy
         <body>
           <script>
             if (window.opener) {
-               window.opener.postMessage({ type: 'OAUTH_AUTH_SUCCESS', provider: '${provider}' }, '*');
+               window.opener.postMessage({ type: 'OAUTH_AUTH_SUCCESS', provider: ${JSON.stringify(provider).replace(/</g, '\\u003c')} }, '*');
                window.close();
             } else {
                window.location.href = '/';
