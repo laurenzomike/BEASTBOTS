@@ -1,0 +1,3 @@
+## 2024-05-24 - Initial Review
+**Learning:** In AppFleetGrid.tsx, there's an O(N*M) lookup happening inside a map loop. Specifically, `globalActivities.find(a => a.botId === bot.id)` is being called for every `bot` in `activeBots.map()`. This means if there are N active bots and M global activities, it takes O(N*M) time to render the grid.
+**Action:** Replace this inner `find` call by pre-computing a lookup map before the map iteration. Creating a map from botId to last activity text takes O(M) time, and then lookup inside the loop takes O(1), making overall time O(N+M). Since this is a React component, use `useMemo` to construct the map outside of the JSX.

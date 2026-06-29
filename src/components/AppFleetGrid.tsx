@@ -37,6 +37,16 @@ export const AppFleetGrid: React.FC<AppFleetGridProps> = ({
   const activeBots = filteredBots.filter(b => b.status === 'online' || b.status === 'error');
   const standbyBots = filteredBots.filter(b => b.status === 'offline' || b.status === 'auth-required');
 
+  const activityMap = React.useMemo(() => {
+    const map = new Map<string, string>();
+    for (const activity of globalActivities) {
+      if (!map.has(activity.botId)) {
+        map.set(activity.botId, activity.text);
+      }
+    }
+    return map;
+  }, [globalActivities]);
+
   const [showStandby, setShowStandby] = React.useState(activeBots.length === 0);
 
   return (
@@ -132,7 +142,7 @@ export const AppFleetGrid: React.FC<AppFleetGridProps> = ({
             className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-8"
           >
             {activeBots.map((bot, i) => {
-              const lastLog = globalActivities.find(a => a.botId === bot.id)?.text || "";
+              const lastLog = activityMap.get(bot.id) || "";
               return (
                 <motion.div 
                   key={bot.id}
