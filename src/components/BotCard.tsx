@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { motion } from "motion/react";
 import { Bot, BotType } from "../types";
 import { BOT_TYPES } from "../constants";
@@ -22,6 +22,18 @@ export const BotCard: React.FC<BotCardProps> = ({ bot, index, onSelect, onUpdate
   const restWords = words.join(' ');
 
   const cleanLastActivity = lastActivity?.replace(/\[ACTION\]|\[ANALYSIS\]/g, "").trim() || "";
+
+  const respMap = useMemo(() => {
+    const map = new Map<string, string>();
+    if (typeDef?.responsibilities) {
+      for (const r of typeDef.responsibilities) {
+        if (!map.has(r.id)) {
+          map.set(r.id, r.label);
+        }
+      }
+    }
+    return map;
+  }, [typeDef]);
 
   return (
     <motion.div 
@@ -122,7 +134,7 @@ export const BotCard: React.FC<BotCardProps> = ({ bot, index, onSelect, onUpdate
              {bot.config?.responsibilities?.length > 0 && (
                 <div 
                   className="flex items-center gap-1.5 px-2 py-1 border border-white/10 text-[6px] font-black uppercase tracking-widest text-white/40 cursor-help"
-                  title={`Active Scopes: ${bot.config.responsibilities.map((r: string) => typeDef?.responsibilities?.find(tr => tr.id === r)?.label || r).join(', ')}`}
+                  title={`Active Scopes: ${bot.config.responsibilities.map((r: string) => respMap.get(r) || r).join(', ')}`}
                 >
                    {bot.config.responsibilities.length} Scopes
                 </div>

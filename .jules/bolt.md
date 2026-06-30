@@ -1,0 +1,3 @@
+## 2024-07-15 - React O(N*M) Lookup Optimization
+**Learning:** Found an O(N*M) performance bottleneck in `src/components/BotCard.tsx` where `.find()` is called inside a `.map()` during render: `bot.config.responsibilities.map((r: string) => typeDef?.responsibilities?.find(tr => tr.id === r)?.label || r)`. This scales poorly with large arrays.
+**Action:** Replace nested loops like `.map(x => array.find(...))` with an O(1) Lookup Map (e.g., `Map` or plain object). Crucially, the map must be memoized using `useMemo` outside the JSX return, otherwise it gets rebuilt on every render and defeats the optimization.
