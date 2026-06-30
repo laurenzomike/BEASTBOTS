@@ -24,6 +24,16 @@ const PORT = 3000;
 
 app.use(express.json());
 
+function escapeHtml(unsafe: string): string {
+  if (!unsafe) return "";
+  return String(unsafe)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 // API Routes
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok" });
@@ -111,7 +121,7 @@ app.get(["/api/oauth/:provider/callback", "/api/oauth/:provider/callback/"], asy
   const { code, state, error } = req.query;
 
   if (error) {
-    return res.send(`<html><body><p>Error: ${error}</p></body></html>`);
+    return res.send(`<html><body><p>Error: ${escapeHtml(String(error))}</p></body></html>`);
   }
 
   try {
@@ -163,7 +173,8 @@ app.get(["/api/oauth/:provider/callback", "/api/oauth/:provider/callback/"], asy
 
     if (tokens.error) {
       console.error(`Oauth Token Error [${provider}]:`, tokens);
-      return res.status(400).send(`<html><body><h3>Authentication Error</h3><p>${tokens.error_description || tokens.error}</p></body></html>`);
+      const errorMessage = tokens.error_description || tokens.error;
+      return res.status(400).send(`<html><body><h3>Authentication Error</h3><p>${escapeHtml(String(errorMessage))}</p></body></html>`);
     }
 
     if (tokens.access_token) {
@@ -194,7 +205,7 @@ app.get(["/api/oauth/:provider/callback", "/api/oauth/:provider/callback/"], asy
         <body>
           <script>
             if (window.opener) {
-               window.opener.postMessage({ type: 'OAUTH_AUTH_SUCCESS', provider: '${provider}' }, '*');
+               window.opener.postMessage({ type: 'OAUTH_AUTH_SUCCESS', provider: ${JSON.stringify(provider).replace(/</g, '\\u003c')} }, '*');
                window.close();
             } else {
                window.location.href = '/';
