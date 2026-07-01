@@ -1,0 +1,3 @@
+## 2024-07-01 - React Re-render Filtering Optimization
+**Learning:** In a React application, filtering arrays within the render body (like `bots.filter()`) without memoization causes the filtering logic (including expensive O(N) operations like `.toLowerCase()`) to execute on every single render, even when the data or search query hasn't changed.
+**Action:** Extract invariant computations (like `.toLowerCase()` on the query) out of the `.filter()` callback, use `useMemo` for derived array state, and order conditions to short-circuit inexpensive checks (like status equality) before expensive ones (like string manipulation).
