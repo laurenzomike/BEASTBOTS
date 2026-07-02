@@ -1,0 +1,5 @@
+## 2024-03-24 - React Component Render Optimization
+
+**Learning:** When filtering arrays during React render (e.g., in a search bar implementation), applying `.toLowerCase()` on the query variable *inside* the array `.filter()` callback leads to redundant execution of the string operation on every iteration. Furthermore, executing this O(N) array filtering operation synchronously during component render without memoization blocks the main thread and can degrade interaction performance when the list scales or typing velocity increases.
+
+**Action:** Always wrap computationally expensive or iterative data-shaping logic in `useMemo`. When applying string transformations for filtering, hoist loop-invariant operations (like caching `searchQuery.toLowerCase()`) outside the callback but *inside* the `useMemo` block. Additionally, implement short-circuit evaluation by checking computationally cheap boolean constraints (like an exact match on a dropdown filter) before performing heavier substring matching, skipping the expensive work entirely for non-matching entries.
