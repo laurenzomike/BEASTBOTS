@@ -72,4 +72,4 @@ async function testConnection() {
     }
   }
 }
-testConnection();
+testConnection().catch(console.error);
