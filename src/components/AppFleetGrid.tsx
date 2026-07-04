@@ -39,6 +39,17 @@ export const AppFleetGrid: React.FC<AppFleetGridProps> = ({
 
   const [showStandby, setShowStandby] = React.useState(activeBots.length === 0);
 
+  const activityMap = React.useMemo(() => {
+    const map = new Map<string, string>();
+    for (let i = 0; i < globalActivities.length; i++) {
+      const a = globalActivities[i];
+      if (!map.has(a.botId)) {
+        map.set(a.botId, a.text);
+      }
+    }
+    return map;
+  }, [globalActivities]);
+
   return (
     <motion.div 
       key="fleet"
@@ -132,7 +143,7 @@ export const AppFleetGrid: React.FC<AppFleetGridProps> = ({
             className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-8"
           >
             {activeBots.map((bot, i) => {
-              const lastLog = globalActivities.find(a => a.botId === bot.id)?.text || "";
+              const lastLog = activityMap.get(bot.id) || "";
               return (
                 <motion.div 
                   key={bot.id}
