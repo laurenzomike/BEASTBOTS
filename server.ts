@@ -189,12 +189,13 @@ app.get(["/api/oauth/:provider/callback", "/api/oauth/:provider/callback/"], asy
       }, { merge: true });
     }
 
+    const safePayload = JSON.stringify({ type: 'OAUTH_AUTH_SUCCESS', provider }).replace(/</g, '\\u003c');
     res.send(`
       <html>
         <body>
           <script>
             if (window.opener) {
-               window.opener.postMessage({ type: 'OAUTH_AUTH_SUCCESS', provider: '${provider}' }, '*');
+               window.opener.postMessage(${safePayload}, '*');
                window.close();
             } else {
                window.location.href = '/';
