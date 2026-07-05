@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { motion } from "motion/react";
 import { Bot, BotType } from "../types";
 import { BOT_TYPES } from "../constants";
@@ -22,6 +22,28 @@ export const BotCard: React.FC<BotCardProps> = ({ bot, index, onSelect, onUpdate
   const restWords = words.join(' ');
 
   const cleanLastActivity = lastActivity?.replace(/\[ACTION\]|\[ANALYSIS\]/g, "").trim() || "";
+
+  // React Performance Convention: Optimizing O(N*M) lookups to O(N+M)
+  // Replaced inline .map() with .find() inside JSX with a memoized O(1) Lookup Map
+  const activeScopesText = useMemo(() => {
+    if (!bot.config?.responsibilities?.length) return '';
+    if (!typeDef?.responsibilities) return `Active Scopes: ${bot.config.responsibilities.join(', ')}`;
+
+    const respMap = new Map<string, string>();
+    const trs = typeDef.responsibilities;
+    for (let i = 0; i < trs.length; i++) {
+      if (!respMap.has(trs[i].id)) {
+        respMap.set(trs[i].id, trs[i].label);
+      }
+    }
+
+    const scopes = [];
+    const brs = bot.config.responsibilities;
+    for (let i = 0; i < brs.length; i++) {
+      scopes.push(respMap.get(brs[i]) || brs[i]);
+    }
+    return `Active Scopes: ${scopes.join(', ')}`;
+  }, [bot.config?.responsibilities, typeDef?.responsibilities]);
 
   return (
     <motion.div 
@@ -122,7 +144,7 @@ export const BotCard: React.FC<BotCardProps> = ({ bot, index, onSelect, onUpdate
              {bot.config?.responsibilities?.length > 0 && (
                 <div 
                   className="flex items-center gap-1.5 px-2 py-1 border border-white/10 text-[6px] font-black uppercase tracking-widest text-white/40 cursor-help"
-                  title={`Active Scopes: ${bot.config.responsibilities.map((r: string) => typeDef?.responsibilities?.find(tr => tr.id === r)?.label || r).join(', ')}`}
+                  title={activeScopesText}
                 >
                    {bot.config.responsibilities.length} Scopes
                 </div>
