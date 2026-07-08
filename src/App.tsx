@@ -29,6 +29,8 @@ import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
+const botTypeOrderMap = new Map(BOT_TYPES.map((bt, index) => [bt.id, index]));
+
 interface Toast {
   id: string;
   message: string;
@@ -157,11 +159,11 @@ export default function App() {
         loadedBots.push({ id: doc.id, ...doc.data() } as Bot);
       });
       loadedBots.sort((a, b) => {
-        const idxA = BOT_TYPES.findIndex(bt => bt.id === a.type);
-        const idxB = BOT_TYPES.findIndex(bt => bt.id === b.type);
+        const idxA = botTypeOrderMap.get(a.type) ?? Infinity;
+        const idxB = botTypeOrderMap.get(b.type) ?? Infinity;
         return idxA - idxB;
       });
-      setBots(loadedBots.filter(b => BOT_TYPES.some(bt => bt.id === b.type)));
+      setBots(loadedBots.filter(b => botTypeOrderMap.has(b.type)));
     }, (error) => {
       handleFirestoreError(error, 'list', `users/${user.uid}/bots`);
     });

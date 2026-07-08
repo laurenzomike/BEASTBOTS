@@ -1,0 +1,3 @@
+## 2026-07-08 - O(N*M) lookups in Firestore Snapshot handlers
+**Learning:** Inside the real-time snapshot listener for `users/{uid}/bots`, an O(N) `findIndex` and `some` method was being called on `BOT_TYPES` for every bot loaded during the `.sort()` and `.filter()` operations. This scales poorly as the fleet grows because O(N*M) lookups delay state updates.
+**Action:** When filtering or sorting collections based on a static list, create an O(1) Lookup Map outside the component (e.g. `new Map(BOT_TYPES.map((bt, i) => [bt.id, i]))`) to eliminate nested iteration and prevent UI blocking during mass bot updates.
