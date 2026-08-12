@@ -4,7 +4,6 @@ import path from "path";
 import crypto from "crypto";
 import dotenv from "dotenv";
 import admin from "firebase-admin";
-import firebaseConfig from "./firebase-applet-config.json";
 import { google } from "googleapis";
 
 dotenv.config();
@@ -13,7 +12,7 @@ dotenv.config();
 if (!admin.apps.length) {
   admin.initializeApp({
     credential: admin.credential.applicationDefault(),
-    projectId: firebaseConfig.projectId,
+    projectId: process.env.VITE_FIREBASE_PROJECT_ID,
   });
 }
 const db = admin.firestore();
